@@ -30,7 +30,7 @@ const LAND_BOXES: Array<[number, number, number, number]> = [
   [30, 45, 129, 146],
   [-38, -11, 113, 153],
   [-47, -34, 166, 179],
-  [-90, -70, -180, 180],
+  [-84, -72, -180, 180],
 ];
 
 function isLand(lat: number, lon: number) {
@@ -69,11 +69,11 @@ function LandDots() {
   return (
     <points geometry={geometry}>
       <pointsMaterial
-        size={0.038}
+        size={0.024}
         sizeAttenuation
-        color="#8df0ff"
+        color="#4fd2f5"
         transparent
-        opacity={0.95}
+        opacity={0.6}
         blending={THREE.AdditiveBlending}
       />
     </points>
@@ -147,7 +147,7 @@ function ScanMarkers() {
           <group key={i} position={pos} quaternion={quat}>
             <mesh>
               <circleGeometry args={[0.018, 16]} />
-              <meshBasicMaterial color="#9df3ff" transparent opacity={0.95} />
+              <meshBasicMaterial color="#9df3ff" transparent opacity={0.6} />
             </mesh>
             <mesh>
               <ringGeometry args={[0.026, 0.034, 32]} />
