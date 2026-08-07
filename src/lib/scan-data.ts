@@ -181,3 +181,110 @@ export function gradeColor(grade: string): string {
   if (grade === "C") return "var(--sev-medium)";
   return "var(--sev-critical)";
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SAST Analytics helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type SeverityBucket = "critical" | "high" | "medium" | "low";
+
+export function severityBucket(score: number): SeverityBucket {
+  if (score >= 8) return "critical";
+  if (score >= 6) return "high";
+  if (score >= 4) return "medium";
+  return "low";
+}
+
+export const BUCKET_COLOR: Record<SeverityBucket, string> = {
+  critical: "var(--sev-critical)",
+  high:     "var(--sev-high)",
+  medium:   "var(--sev-medium)",
+  low:      "var(--sev-low)",
+};
+
+export type ScanStats = {
+  total: number;
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+  topRiskFile: string;
+  topRiskScore: number;
+  avgEpss: number;
+  threatScore: number; // 0-10 composite
+  bySource: Record<string, number>;
+  byType: Record<string, number>;
+};
+
+export function computeStats(findings: Finding[], sector: Sector, applied: boolean): ScanStats {
+  if (findings.length === 0) {
+    return {
+      total: 0, critical: 0, high: 0, medium: 0, low: 0,
+      topRiskFile: "—", topRiskScore: 0, avgEpss: 0, threatScore: 0,
+      bySource: {}, byType: {},
+    };
+  }
+
+  const scores = findings.map((f) => applied ? avss(f, sector) : (f.baseSeverity ?? f.baseline ?? 0));
+  const buckets = scores.map(severityBucket);
+
+  // Per-file max score
+  const fileScores: Record<string, number> = {};
+  findings.forEach((f, i) => {
+    const s = scores[i] ?? 0;
+    fileScores[f.filePath] = Math.max(fileScores[f.filePath] ?? 0, s);
+  });
+  const topEntry = Object.entries(fileScores).sort((a, b) => b[1] - a[1])[0];
+
+  // EPSS
+  const epssValues = findings.map((f) => f.epssScore ?? f.epss ?? 0).filter((v) => v > 0);
+  const avgEpss = epssValues.length ? epssValues.reduce((a, b) => a + b, 0) / epssValues.length : 0;
+
+  // Threat score: weighted average of top-5 AVSS scores
+  const top5 = scores.sort((a, b) => b - a).slice(0, 5);
+  const threatScore = Math.min(10, top5.reduce((a, b) => a + b, 0) / top5.length);
+
+  // By source
+  const bySource: Record<string, number> = {};
+  const byType: Record<string, number> = {};
+  findings.forEach((f) => {
+    const src = f.source ?? f.tool ?? "unknown";
+    bySource[src] = (bySource[src] ?? 0) + 1;
+    const t = f.type ?? "unknown";
+    byType[t] = (byType[t] ?? 0) + 1;
+  });
+
+  return {
+    total: findings.length,
+    critical: buckets.filter((b) => b === "critical").length,
+    high:     buckets.filter((b) => b === "high").length,
+    medium:   buckets.filter((b) => b === "medium").length,
+    low:      buckets.filter((b) => b === "low").length,
+    topRiskFile: topEntry?.[0] ?? "—",
+    topRiskScore: topEntry?.[1] ?? 0,
+    avgEpss: Math.round(avgEpss * 1000) / 1000,
+    threatScore: Math.round(threatScore * 10) / 10,
+    bySource,
+    byType,
+  };
+}
+
+/** Groups findings by file path, returns entries sorted by max AVSS desc */
+export function groupByFile(
+  findings: Finding[],
+  sector: Sector,
+  applied: boolean
+): Array<{ path: string; count: number; maxScore: number; findings: Finding[] }> {
+  const map: Record<string, Finding[]> = {};
+  findings.forEach((f) => {
+    (map[f.filePath] ??= []).push(f);
+  });
+  return Object.entries(map)
+    .map(([path, fs]) => ({
+      path,
+      count: fs.length,
+      maxScore: Math.max(...fs.map((f) => applied ? avss(f, sector) : (f.baseSeverity ?? f.baseline ?? 0))),
+      findings: fs,
+    }))
+    .sort((a, b) => b.maxScore - a.maxScore);
+}
