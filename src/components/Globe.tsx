@@ -71,7 +71,7 @@ function LandDots() {
       <pointsMaterial
         size={0.024}
         sizeAttenuation
-        color="#4fd2f5"
+        color="#b6ff3c"
         transparent
         opacity={0.6}
         blending={THREE.AdditiveBlending}
@@ -103,7 +103,7 @@ function GraticuleLines() {
 
   return (
     <lineSegments geometry={geometry}>
-      <lineBasicMaterial color="#1d6f8f" transparent opacity={0.35} depthWrite={false} />
+      <lineBasicMaterial color="#b6ff3c" transparent opacity={0.15} depthWrite={false} />
     </lineSegments>
   );
 }
@@ -147,11 +147,11 @@ function ScanMarkers() {
           <group key={i} position={pos} quaternion={quat}>
             <mesh>
               <circleGeometry args={[0.018, 16]} />
-              <meshBasicMaterial color="#9df3ff" transparent opacity={0.6} />
+              <meshBasicMaterial color="#b6ff3c" transparent opacity={0.6} />
             </mesh>
             <mesh>
               <ringGeometry args={[0.026, 0.034, 32]} />
-              <meshBasicMaterial color="#4fd8ff" transparent opacity={0.6} side={THREE.DoubleSide} />
+              <meshBasicMaterial color="#b6ff3c" transparent opacity={0.6} side={THREE.DoubleSide} />
             </mesh>
           </group>
         );
@@ -171,7 +171,7 @@ function Earth() {
     <group ref={group} rotation={[0.32, 0, 0.16]}>
       <mesh renderOrder={-1}>
         <sphereGeometry args={[RADIUS * 0.99, 48, 48]} />
-        <meshBasicMaterial color="#08131b" />
+        <meshBasicMaterial color="#000000" />
       </mesh>
       <GraticuleLines />
       <LandDots />
@@ -179,9 +179,9 @@ function Earth() {
       <mesh>
         <sphereGeometry args={[RADIUS * 1.12, 32, 32]} />
         <meshBasicMaterial
-          color="#0e7fa4"
+          color="#b6ff3c"
           transparent
-          opacity={0.09}
+          opacity={0.04}
           side={THREE.BackSide}
           depthWrite={false}
         />

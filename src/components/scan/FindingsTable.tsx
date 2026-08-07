@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { FINDINGS, avss, scoreColor, type Finding, type Sector } from "@/lib/scan-data";
+import { avss, scoreColor, type Finding, type Sector } from "@/lib/scan-data";
 
-const SEV_COLOR: Record<Finding["severity"], string> = {
+const SEV_COLOR: Record<NonNullable<Finding["severity"]>, string> = {
   critical: "var(--sev-critical)",
   high: "var(--sev-high)",
   medium: "var(--sev-medium)",
@@ -38,23 +38,57 @@ function Code({ code }: { code: string }) {
 
 function ExpandedRow({ f, sector }: { f: Finding; sector: Sector }) {
   const [showFix, setShowFix] = useState(false);
+  const [loadingFix, setLoadingFix] = useState(false);
+  const [fixDiff, setFixDiff] = useState<Finding["diff"]>(f.diff);
+  const [fixNote, setFixNote] = useState<string | undefined>(f.fixNote);
+  
+  const handleSuggestFix = async () => {
+    if (!showFix && !fixDiff) {
+      setLoadingFix(true);
+      setShowFix(true);
+      try {
+        const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+        const res = await fetch(`${API_URL}/suggest-fix`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ finding: f }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setFixDiff(data.diff);
+          setFixNote(data.fixNote);
+        }
+      } catch (e) {
+        console.error("Failed to suggest fix", e);
+      } finally {
+        setLoadingFix(false);
+      }
+    } else {
+      setShowFix((s) => !s);
+    }
+  };
+
   return (
     <div className="border-t border-border bg-background/40 px-4 py-4">
       <div className="grid gap-4 lg:grid-cols-[1.15fr_1fr]">
         <div className="overflow-hidden rounded-md border border-border bg-panel/60">
-          {f.snippet.map((l) => (
-            <div
-              key={l.n}
-              className={`flex gap-3 px-3 py-1 font-mono text-[11.5px] ${
-                l.n === f.line ? "bg-sev-critical/10" : ""
-              }`}
-            >
-              <span className="w-8 shrink-0 text-right text-muted-foreground/60">{l.n}</span>
-              <span className="whitespace-pre-wrap text-foreground/90">
-                <Code code={l.code} />
-              </span>
-            </div>
-          ))}
+          {f.snippet ? (
+            f.snippet.map((l) => (
+              <div
+                key={l.n}
+                className={`flex gap-3 px-3 py-1 font-mono text-[11.5px] ${
+                  l.n === (f.lineNumber ?? f.lineNumber) ? "bg-sev-critical/10" : ""
+                }`}
+              >
+                <span className="w-8 shrink-0 text-right text-muted-foreground/60">{l.n}</span>
+                <span className="whitespace-pre-wrap text-foreground/90">
+                  <Code code={l.code} />
+                </span>
+              </div>
+            ))
+          ) : (
+            <div className="p-4 text-xs text-muted-foreground italic">No code snippet available</div>
+          )}
         </div>
 
         <div className="space-y-3">
@@ -62,16 +96,16 @@ function ExpandedRow({ f, sector }: { f: Finding; sector: Sector }) {
             <p className="font-mono text-[10px] tracking-[0.14em] text-muted-foreground uppercase">
               Evidence
             </p>
-            <p className="mt-1 text-xs text-foreground">{f.evidence}</p>
+            <p className="mt-1 text-xs text-foreground">{f.evidence ?? f.reason ?? "Identified by scanner"}</p>
           </div>
           <div>
             <p className="font-mono text-[10px] tracking-[0.14em] text-muted-foreground uppercase">
               Regulatory context
             </p>
-            <p className="mt-1 text-xs text-muted-foreground">{f.citations[sector]}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{f.citations?.[sector] ?? f.regulatoryTag ?? "No specific regulation cited."}</p>
           </div>
           <button
-            onClick={() => setShowFix((s) => !s)}
+            onClick={handleSuggestFix}
             className="glow-accent rounded-md bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary/20"
           >
             {showFix ? "Hide fix" : "Suggest fix"}
@@ -87,40 +121,52 @@ function ExpandedRow({ f, sector }: { f: Finding; sector: Sector }) {
             exit={{ height: 0, opacity: 0 }}
             className="overflow-hidden"
           >
-            <div className="mt-4 overflow-hidden rounded-md border border-border bg-panel/60">
-              {f.diff.map((d, i) => (
-                <div
-                  key={i}
-                  className="flex gap-3 px-3 py-1 font-mono text-[11.5px]"
-                  style={{
-                    background:
-                      d.sign === "+"
-                        ? "color-mix(in oklab, var(--sev-low) 12%, transparent)"
-                        : d.sign === "-"
-                          ? "color-mix(in oklab, var(--sev-critical) 12%, transparent)"
-                          : "transparent",
-                  }}
-                >
-                  <span
-                    className="w-3 shrink-0"
-                    style={{
-                      color:
-                        d.sign === "+"
-                          ? "var(--sev-low)"
-                          : d.sign === "-"
-                            ? "var(--sev-critical)"
-                            : "var(--muted-foreground)",
-                    }}
-                  >
-                    {d.sign}
-                  </span>
-                  <span className="whitespace-pre-wrap text-foreground/90">
-                    <Code code={d.code} />
-                  </span>
+            {loadingFix ? (
+              <div className="mt-4 p-4 rounded-md border border-border bg-panel/60">
+                <p className="text-xs text-muted-foreground animate-pulse">Generating AI patch and remediation plan...</p>
+              </div>
+            ) : fixDiff ? (
+              <>
+                <div className="mt-4 overflow-hidden rounded-md border border-border bg-panel/60">
+                  {fixDiff.map((d, i) => (
+                    <div
+                      key={i}
+                      className="flex gap-3 px-3 py-1 font-mono text-[11.5px]"
+                      style={{
+                        background:
+                          d.sign === "+"
+                            ? "color-mix(in oklab, var(--sev-low) 12%, transparent)"
+                            : d.sign === "-"
+                              ? "color-mix(in oklab, var(--sev-critical) 12%, transparent)"
+                              : "transparent",
+                      }}
+                    >
+                      <span
+                        className="w-3 shrink-0"
+                        style={{
+                          color:
+                            d.sign === "+"
+                              ? "var(--sev-low)"
+                              : d.sign === "-"
+                                ? "var(--sev-critical)"
+                                : "var(--muted-foreground)",
+                        }}
+                      >
+                        {d.sign}
+                      </span>
+                      <span className="whitespace-pre-wrap text-foreground/90">
+                        <Code code={d.code} />
+                      </span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-            <p className="mt-2 text-xs text-muted-foreground">{f.fixNote}</p>
+                {fixNote && <p className="mt-2 text-xs text-muted-foreground">{fixNote}</p>}
+              </>
+            ) : (
+              <div className="mt-4 p-4 rounded-md border border-border bg-panel/60">
+                <p className="text-xs text-muted-foreground italic">No fix available for this finding.</p>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -132,18 +178,20 @@ export function FindingsTable({
   sector,
   applied,
   focusPath,
+  findings,
 }: {
   sector: Sector;
   applied: boolean;
   focusPath: string | null;
+  findings: Finding[];
 }) {
-  const [open, setOpen] = useState<string | null>("f1");
+  const [open, setOpen] = useState<string | null>(null);
 
   const rows = useMemo(() => {
-    return [...FINDINGS].sort((a, b) =>
-      applied ? avss(b, sector) - avss(a, sector) : b.baseline - a.baseline,
+    return [...findings].sort((a, b) =>
+      applied ? avss(b, sector) - avss(a, sector) : (b.baseSeverity ?? b.baseline ?? 0) - (a.baseSeverity ?? a.baseline ?? 0),
     );
-  }, [sector, applied]);
+  }, [sector, applied, findings]);
 
   return (
     <div className="panel overflow-hidden rounded-xl">
@@ -157,7 +205,8 @@ export function FindingsTable({
 
       <div className="divide-y divide-border">
         {rows.map((f, i) => {
-          const live = applied ? avss(f, sector) : f.baseline;
+          const base = f.baseSeverity ?? f.baseline ?? 0;
+          const live = applied ? avss(f, sector) : base;
           const isOpen = open === f.id;
           const focused = focusPath === f.filePath;
           return (
@@ -180,18 +229,18 @@ export function FindingsTable({
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm text-foreground">{f.title}</p>
                   <p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">
-                    {f.filePath}:{f.line} · {f.tool}
+                    {f.filePath}:{f.lineNumber ?? f.line} · {f.tool ?? f.source ?? "unknown"}
                   </p>
                 </div>
                 <span
                   className="hidden shrink-0 rounded-full border px-2 py-0.5 font-mono text-[10px] sm:block"
-                  style={{ color: SEV_COLOR[f.severity], borderColor: SEV_COLOR[f.severity] }}
+                  style={{ color: SEV_COLOR[f.severity ?? "low"], borderColor: SEV_COLOR[f.severity ?? "low"] }}
                 >
-                  {f.severity}
+                  {f.severity ?? "low"}
                 </span>
                 <div className="flex shrink-0 items-baseline gap-2 font-mono tabular-nums">
                   <span className="text-xs text-muted-foreground line-through">
-                    {f.baseline.toFixed(1)}
+                    {base.toFixed(1)}
                   </span>
                   <motion.span
                     key={`${live}`}

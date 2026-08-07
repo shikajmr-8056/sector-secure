@@ -1,16 +1,20 @@
 import { motion } from "motion/react";
-import { SECTORS, SECTOR_CONFIDENCE, SECTOR_EVIDENCE, type Sector } from "@/lib/scan-data";
+import { SECTORS, type Sector } from "@/lib/scan-data";
 
 export function SectorPanel({
   sector,
   onSector,
   confirmed,
   onConfirm,
+  sectorConfidence,
+  sectorEvidence,
 }: {
   sector: Sector;
   onSector: (s: Sector) => void;
   confirmed: boolean;
   onConfirm: () => void;
+  sectorConfidence: Record<Sector, number>;
+  sectorEvidence: string[];
 }) {
   return (
     <div className="panel rounded-xl p-5">
@@ -18,7 +22,7 @@ export function SectorPanel({
         <div className="flex items-center gap-3">
           <h2 className="text-sm font-medium">Detected sector</h2>
           <span className="rounded border border-primary/40 px-2 py-0.5 font-mono text-[11px] text-primary">
-            {SECTORS.find((s) => s.id === sector)?.label} · {Math.round(SECTOR_CONFIDENCE[sector] * 100)}%
+            {SECTORS.find((s) => s.id === sector)?.label} · {Math.round((sectorConfidence[sector] || 0) * 100)}%
             confidence
           </span>
         </div>
@@ -51,7 +55,7 @@ export function SectorPanel({
       </div>
 
       <div className="mt-4 flex flex-wrap gap-1.5">
-        {SECTOR_EVIDENCE.map((e) => (
+        {sectorEvidence.map((e) => (
           <span
             key={e}
             className="rounded border border-border bg-muted/40 px-2 py-0.5 font-mono text-[11px] text-muted-foreground"
@@ -59,11 +63,14 @@ export function SectorPanel({
             {e}
           </span>
         ))}
+        {sectorEvidence.length === 0 && (
+          <span className="text-xs text-muted-foreground italic">No specific evidence found.</span>
+        )}
       </div>
 
       <div className="mt-5 space-y-2">
         {SECTORS.map((s) => {
-          const v = SECTOR_CONFIDENCE[s.id];
+          const v = sectorConfidence[s.id] || 0;
           const active = s.id === sector;
           return (
             <div key={s.id} className="flex items-center gap-3">

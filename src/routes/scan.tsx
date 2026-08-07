@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { z } from "zod";
 import { ScanProgress } from "@/components/scan/ScanProgress";
@@ -6,10 +6,10 @@ import { SectorPanel } from "@/components/scan/SectorPanel";
 import { FileTreeHeatmap } from "@/components/scan/FileTreeHeatmap";
 import { FindingsTable } from "@/components/scan/FindingsTable";
 import { DastPanel } from "@/components/scan/DastPanel";
-import { FINDINGS, type Sector } from "@/lib/scan-data";
+import { type Sector, type Finding, type TreeNode, buildFileTreeFromFindings } from "@/lib/scan-data";
 
 export const Route = createFileRoute("/scan")({
-  validateSearch: z.object({ repo: z.string().default("github.com/acme-labs/ledger-api") }),
+  validateSearch: z.object({ repo: z.string().default("") }),
   head: () => ({
     meta: [
       { title: "Scan results — AVSS" },
@@ -37,13 +37,116 @@ function ScanDashboard() {
   const [applied, setApplied] = useState(false);
   const [focusPath, setFocusPath] = useState<string | null>(null);
   const [tab, setTab] = useState<"static" | "dast">("static");
+  
+  const [findings, setFindings] = useState<Finding[]>([]);
+  const [fileTree, setFileTree] = useState<TreeNode[]>([]);
+  const [sectorConfidence, setSectorConfidence] = useState<Record<Sector, number>>({ fintech: 0, healthcare: 0, ecommerce: 0, general: 1 });
+  const [sectorEvidence, setSectorEvidence] = useState<string[]>([]);
+  const [scanError, setScanError] = useState<string | null>(null);
+  
   const cached = /demo|cached|offline/i.test(repo);
 
-  const handleDone = useCallback(() => setScanning(false), []);
+  useEffect(() => {
+    if (!repo) {
+      setScanning(false);
+      return;
+    }
+
+    let isMounted = true;
+    
+    async function runScan() {
+      try {
+        setScanning(true);
+        setScanError(null);
+        
+        const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+        
+        // 1. SAST Scan
+        const sastRes = await fetch(`${API_URL}/scan/sast`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ repoUrl: repo })
+        });
+        
+        if (!sastRes.ok) throw new Error("SAST scan failed");
+        
+        const sastData = await sastRes.json();
+        
+        // Ensure snippets are in array format for the UI
+        const parsedFindings: Finding[] = (sastData.findings || []).map((f: any) => {
+          if (f.codeSnippet && !f.snippet) {
+            const lines = f.codeSnippet.split('\n');
+            const startLine = Math.max(1, (f.lineNumber || 1) - Math.floor(lines.length / 2));
+            f.snippet = lines.map((l: string, i: number) => ({ n: startLine + i, code: l }));
+          }
+          return f;
+        });
+
+        if (!isMounted) return;
+
+        // 2. Score & Sector Detect
+        const scoreRes = await fetch(`${API_URL}/score`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            findings: parsedFindings,
+            repoTextSample: sastData.repoTextSample || "",
+            detectedRoutes: sastData.detectedRoutes || [],
+          })
+        });
+
+        if (!scoreRes.ok) throw new Error("Scoring failed");
+
+        const scoreData = await scoreRes.json();
+        
+        if (!isMounted) return;
+
+        const finalFindings = scoreData.findings || parsedFindings;
+        setFindings(finalFindings);
+        setFileTree(buildFileTreeFromFindings(finalFindings));
+        setSector(scoreData.suggestedSector || "general");
+        setSectorConfidence(scoreData.scores || { fintech: 0, healthcare: 0, ecommerce: 0, general: 1 });
+        setSectorEvidence(scoreData.matchedEvidence || []);
+        
+      } catch (err: any) {
+        if (isMounted) setScanError(err.message || "An error occurred");
+      } finally {
+        if (isMounted) setScanning(false);
+      }
+    }
+
+    runScan();
+
+    return () => { isMounted = false; };
+  }, [repo]);
+
+  const handleSectorChange = async (newSector: Sector) => {
+    setSector(newSector);
+    setApplied(false);
+    
+    // Re-score findings via backend
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+      const scoreRes = await fetch(`${API_URL}/score`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          findings,
+          sector: newSector,
+        })
+      });
+      if (scoreRes.ok) {
+        const data = await scoreRes.json();
+        if (data.findings) setFindings(data.findings);
+      }
+    } catch (e) {
+      console.error("Re-scoring failed", e);
+    }
+  };
 
   const selectFile = (path: string) => {
     setFocusPath(path);
-    const f = FINDINGS.find((x) => x.filePath === path);
+    const f = findings.find((x) => x.filePath === path);
     if (f) document.getElementById(`finding-${f.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
 
@@ -89,8 +192,20 @@ function ScanDashboard() {
             Live scan unavailable — showing cached scan from 14 Jul 2026, 09:22 UTC.
           </div>
         )}
+        
+        {scanError && (
+          <div className="rounded-lg border border-sev-critical/40 bg-sev-critical/10 px-4 py-2.5 text-xs text-sev-critical">
+            {scanError}
+          </div>
+        )}
 
-        <ScanProgress repo={repo} onDone={handleDone} />
+        {repo ? (
+          <ScanProgress repo={repo} isScanning={scanning} findingsCount={findings.length} />
+        ) : (
+          <div className="rounded-lg border border-border bg-panel/60 px-4 py-2.5 text-xs text-muted-foreground">
+            No repository selected. Please go back and enter a repository URL.
+          </div>
+        )}
 
         {tab === "dast" ? (
           <DastPanel />
@@ -98,12 +213,11 @@ function ScanDashboard() {
           <>
             <SectorPanel
               sector={sector}
-              onSector={(s) => {
-                setSector(s);
-                setApplied(false);
-              }}
+              onSector={handleSectorChange}
               confirmed={applied}
               onConfirm={() => setApplied(true)}
+              sectorConfidence={sectorConfidence}
+              sectorEvidence={sectorEvidence}
             />
 
             <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
@@ -112,9 +226,11 @@ function ScanDashboard() {
                 applied={applied}
                 selected={focusPath}
                 onSelect={selectFile}
+                fileTree={fileTree}
+                findings={findings}
               />
               <div className={scanning ? "pointer-events-none opacity-50" : ""}>
-                <FindingsTable sector={sector} applied={applied} focusPath={focusPath} />
+                <FindingsTable sector={sector} applied={applied} focusPath={focusPath} findings={findings} />
               </div>
             </div>
           </>

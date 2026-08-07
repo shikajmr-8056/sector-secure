@@ -1,20 +1,31 @@
 import { useEffect, useState } from "react";
 import { SCAN_STAGES } from "@/lib/scan-data";
 
-export function ScanProgress({ repo, onDone }: { repo: string; onDone: () => void }) {
+export function ScanProgress({
+  repo,
+  isScanning,
+  findingsCount,
+}: {
+  repo: string;
+  isScanning: boolean;
+  findingsCount: number;
+}) {
   const [stage, setStage] = useState(0);
 
   useEffect(() => {
-    if (stage >= SCAN_STAGES.length) {
-      onDone();
+    if (!isScanning) {
+      setStage(SCAN_STAGES.length);
+      return;
+    }
+    if (stage >= SCAN_STAGES.length - 1) {
       return;
     }
     const t = setTimeout(() => setStage((s) => s + 1), 750);
     return () => clearTimeout(t);
-  }, [stage, onDone]);
+  }, [stage, isScanning]);
 
-  const done = stage >= SCAN_STAGES.length;
-  const pct = Math.min(100, (stage / SCAN_STAGES.length) * 100);
+  const done = !isScanning;
+  const pct = done ? 100 : Math.min(95, (stage / SCAN_STAGES.length) * 100);
 
   return (
     <div className="panel rounded-xl px-5 py-4">
@@ -23,14 +34,14 @@ export function ScanProgress({ repo, onDone }: { repo: string; onDone: () => voi
           <span className="text-primary">▸</span> {repo}
         </p>
         <p className="font-mono text-xs text-foreground">
-          {done ? "Scan complete · 7 findings" : SCAN_STAGES[stage]}
+          {done ? `Scan complete · ${findingsCount} findings` : SCAN_STAGES[stage] || "Wrapping up…"}
         </p>
       </div>
       <div className="relative mt-3 h-[3px] w-full overflow-hidden rounded-full bg-muted">
         <div
           className="h-full rounded-full bg-primary transition-[width] duration-500 ease-out"
           style={{
-            width: `${done ? 100 : pct}%`,
+            width: `${pct}%`,
             boxShadow: "0 0 12px color-mix(in oklab, var(--primary) 70%, transparent)",
           }}
         />
@@ -43,10 +54,14 @@ export function ScanProgress({ repo, onDone }: { repo: string; onDone: () => voi
           <span
             key={s}
             className={
-              i < stage ? "text-primary/70" : i === stage ? "text-foreground" : "text-muted-foreground/40"
+              done || i < stage
+                ? "text-primary/70"
+                : i === stage
+                  ? "text-foreground"
+                  : "text-muted-foreground/40"
             }
           >
-            {i < stage ? "✓ " : "· "}
+            {done || i < stage ? "✓ " : "· "}
             {s.replace("…", "")}
           </span>
         ))}

@@ -1,5 +1,5 @@
 import { motion } from "motion/react";
-import { FILE_TREE, maxScoreForPath, type Sector } from "@/lib/scan-data";
+import { maxScoreForPath, type Sector, type TreeNode, type Finding } from "@/lib/scan-data";
 
 function tint(score: number) {
   if (score === 0) return { bg: "transparent", fg: "var(--muted-foreground)" };
@@ -15,11 +15,15 @@ export function FileTreeHeatmap({
   applied,
   selected,
   onSelect,
+  fileTree,
+  findings,
 }: {
   sector: Sector;
   applied: boolean;
   selected: string | null;
   onSelect: (path: string) => void;
+  fileTree: TreeNode[];
+  findings: Finding[];
 }) {
   return (
     <div className="panel rounded-xl p-3">
@@ -28,8 +32,8 @@ export function FileTreeHeatmap({
         <span className="font-mono text-[11px] text-muted-foreground">max AVSS</span>
       </div>
       <div className="space-y-0.5">
-        {FILE_TREE.map((node) => {
-          const score = maxScoreForPath(node.path, sector, applied);
+        {fileTree.map((node) => {
+          const score = maxScoreForPath(node.path, sector, applied, findings);
           const c = tint(score);
           const active = selected === node.path;
           return (
