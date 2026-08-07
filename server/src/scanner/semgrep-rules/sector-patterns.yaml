@@ -1,0 +1,141 @@
+rules:
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Healthcare / PHI-in-sink rule
+  #
+  # Flags when a PHI variable (patient_id, medical_record, ssn, diagnosis, dob)
+  # is passed to a logging/writing sink WITHOUT a nearby crypto/encrypt call
+  # in the same function body.
+  # ─────────────────────────────────────────────────────────────────────────────
+  - id: phi-in-sink-unencrypted
+    severity: ERROR
+    languages: [javascript, typescript, python]
+    message: >
+      Unencrypted Protected Health Information (PHI) variable '$VAR' is passed
+      to a logging or file-write sink without encryption in the same scope.
+      This may violate India's DPDP Act provisions on sensitive personal data.
+    metadata:
+      category: security
+      cwe: CWE-532
+      owasp: A02:2021
+    patterns:
+      - pattern-either:
+          - pattern: console.log(..., $VAR, ...)
+          - pattern: console.error(..., $VAR, ...)
+          - pattern: console.warn(..., $VAR, ...)
+          - pattern: logger.$METHOD(..., $VAR, ...)
+          - pattern: fs.writeFile($PATH, $VAR, ...)
+          - pattern: fs.writeFileSync($PATH, $VAR, ...)
+      - pattern-either:
+          - pattern: |
+              $VAR = ...; ...
+          - pattern: |
+              function $F(..., $VAR, ...) { ... }
+      - metavariable-regex:
+          metavariable: $VAR
+          regex: (?i)(patient_id|medical_record|ssn|diagnosis|dob)
+      - pattern-not:
+          pattern-either:
+            - pattern: crypto.$ANY(...)
+            - pattern: encrypt(...)
+            - pattern: $CIPHER.update(...)
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Fintech / Hardcoded API key rule
+  # ─────────────────────────────────────────────────────────────────────────────
+  - id: hardcoded-api-key
+    severity: ERROR
+    languages: [javascript, typescript, python, go, java, php]
+    message: >
+      Hardcoded API key or cloud credential detected. Exposed credentials
+      fall under RBI's 2026 Cybersecurity Master Directions and PCI-DSS
+      storage requirements.
+    metadata:
+      category: security
+      cwe: CWE-798
+    patterns:
+      - pattern-regex: >
+          (?i)(api[_-]?key|client[_-]?secret|auth[_-]?token|access[_-]?token|secret[_-]?key)\s*[:=]\s*["'][A-Za-z0-9_\-]{20,}["']
+
+  - id: hardcoded-aws-key
+    severity: ERROR
+    languages: [javascript, typescript, python, go, java, php, yaml, json]
+    message: >
+      Hardcoded AWS Access Key ID (AKIA…) detected. Immediate rotation required.
+    metadata:
+      category: security
+      cwe: CWE-798
+    pattern-regex: \bAKIA[0-9A-Z]{16}\b
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Fintech / Raw CVV-PIN literal assignment
+  # ─────────────────────────────────────────────────────────────────────────────
+  - id: raw-cvv-pin-assignment
+    severity: ERROR
+    languages: [javascript, typescript, python]
+    message: >
+      CVV, PIN, or raw card number is directly assigned a literal value. This
+      data must never appear in source code.
+    metadata:
+      category: security
+      cwe: CWE-312
+    pattern-either:
+      - pattern: $VAR = "$LITERAL"
+      - pattern: $VAR = '$LITERAL'
+    metavariable-regex:
+      metavariable: $VAR
+      regex: (?i)(cvv|cvv2|pin|card_pin|card_number|account_number)
+    metavariable-regex:
+      metavariable: $LITERAL
+      regex: ^\d{3,19}$
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # E-commerce / Client-side price calculation
+  # ─────────────────────────────────────────────────────────────────────────────
+  - id: client-side-price-calculation
+    severity: WARNING
+    languages: [javascript, typescript]
+    message: >
+      Price or discount assignment detected in a frontend file path. Server-side
+      must independently validate the final amount to prevent price manipulation.
+    metadata:
+      category: security
+      cwe: CWE-602
+    patterns:
+      - pattern: $VAR = $EXPR
+      - metavariable-regex:
+          metavariable: $VAR
+          regex: (?i)(total_price|final_price|discount|order_amount|cart_total)
+      - pattern-not-inside:
+          pattern: |
+            function $SERVER(...) { ... }
+      - focus-metavariable: $VAR
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # E-commerce / Backend payment handler missing amount > 0 validation
+  # ─────────────────────────────────────────────────────────────────────────────
+  - id: payment-handler-no-amount-check
+    severity: WARNING
+    languages: [javascript, typescript, python]
+    message: >
+      Payment/checkout route handler does not appear to validate amount > 0.
+      Zero or negative amounts can be exploited for free purchases.
+    metadata:
+      category: security
+      cwe: CWE-20
+    patterns:
+      - pattern-either:
+          - pattern: |
+              app.post('/.../checkout', ...)
+          - pattern: |
+              app.post('/.../payment', ...)
+          - pattern: |
+              router.post('/.../checkout', ...)
+          - pattern: |
+              router.post('/.../payment', ...)
+      - pattern-not:
+          pattern-either:
+            - pattern: |
+                if ($AMOUNT > 0) { ... }
+            - pattern: |
+                if ($AMOUNT <= 0) { ... }

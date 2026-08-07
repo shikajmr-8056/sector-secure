@@ -61,9 +61,9 @@ function ScanInput({ size = "lg" }: { size?: "lg" | "sm" }) {
         onSubmit={(e) => {
           e.preventDefault();
           if (mode === "dast") {
-            navigate({ to: "/scan", search: { repo: value || "demo-target.local" } });
+            navigate({ to: "/scan", search: { repo: "", dastUrl: value || "example.com" } });
           } else {
-            navigate({ to: "/scan", search: { repo: value } });
+            navigate({ to: "/scan", search: { repo: value, dastUrl: "" } });
           }
         }}
         className="flex w-full items-center gap-2 rounded-none border border-border bg-panel/60 p-1.5 backdrop-blur-md"
@@ -125,7 +125,7 @@ function Landing() {
           </Link>
           <Link
             to="/scan"
-            search={{ repo: "demo-dast-target.local" }}
+            search={{ repo: "", dastUrl: "example.com" }}
             className="rounded-none border border-dast bg-dast/10 px-4 py-2 text-sm font-bold text-dast transition-colors hover:bg-dast/20"
           >
             Scan URL (DAST)
@@ -155,47 +155,44 @@ function Landing() {
           </div>
 
           <div className="relative aspect-square w-full">
-            {/* Top-left HUD */}
+            {/* Top-left HUD — scan pipeline stages */}
             <div className="pointer-events-none absolute top-10 -left-10 z-10 flex flex-col gap-1">
               <span className="font-mono text-[10px] text-muted-foreground tracking-widest">
-                SCAN VECTOR <span className="text-primary">+X</span> / <span className="text-foreground">LOCKED</span>
+                PIPELINE <span className="text-primary">SAST</span> / <span className="text-foreground">DAST</span>
               </span>
               <div className="flex h-0.5 w-32 gap-0.5">
                 <div className="h-full w-1/3 bg-primary"></div>
                 <div className="h-full w-2/3 bg-muted"></div>
               </div>
             </div>
-            
-            {/* Top-right HUD */}
+
+            {/* Top-right HUD — real scan components */}
             <div className="pointer-events-none absolute top-20 -right-12 z-10 flex flex-col items-end gap-1 text-right">
               <span className="font-mono text-[10px] text-muted-foreground tracking-widest">
-                THREAT COMPOSITE / <span className="text-foreground">02</span> &nbsp; REALTIME
+                SECTOR DETECTION / <span className="text-foreground">3</span> &nbsp; WEIGHTED
               </span>
               <span className="font-mono text-[10px] text-muted-foreground tracking-widest mt-2">
-                SEVERITY PHASE &mdash; SCORING
+                AVSS &mdash; FORMULA SCORING
               </span>
               <div className="flex h-0.5 w-24 justify-end">
                 <div className="h-full w-1/2 bg-primary"></div>
               </div>
             </div>
 
-            {/* Right edge HUD */}
+            {/* Right edge HUD — real tool names */}
             <div className="pointer-events-none absolute top-1/2 -right-16 z-10 -translate-y-1/2 flex flex-col gap-2">
-              <span className="font-mono text-[10px] text-muted-foreground tracking-wider">EPSS <span className="text-primary">+0.42</span></span>
-              <span className="font-mono text-[10px] text-muted-foreground tracking-wider">RULE PATH / <span className="text-foreground">03</span></span>
-              <span className="font-mono text-[10px] text-muted-foreground tracking-wider">CVE MATCH <span className="text-primary">+1</span></span>
+              <span className="font-mono text-[10px] text-muted-foreground tracking-wider">EPSS <span className="text-primary">FIRST.org</span></span>
+              <span className="font-mono text-[10px] text-muted-foreground tracking-wider">CVE <span className="text-foreground">OSV.dev</span></span>
+              <span className="font-mono text-[10px] text-muted-foreground tracking-wider">SECRETS <span className="text-primary">Gitleaks</span></span>
             </div>
 
             {/* Bottom-right tab row */}
             <div className="pointer-events-none absolute -bottom-6 -right-4 z-10 flex items-end gap-6">
               <div className="flex gap-4 font-mono text-[10px] tracking-widest text-muted-foreground">
                 <span className="border-b border-primary text-primary pb-1">SCAN</span>
-                <span className="pb-1">RULES</span>
                 <span className="pb-1">SCORE</span>
-                <span className="pb-1">REPORT</span>
-              </div>
-              <div className="font-mono text-[10px] tracking-widest text-muted-foreground pb-1">
-                EST. 2026
+                <span className="pb-1">EXPLAIN</span>
+                <span className="pb-1">FIX</span>
               </div>
             </div>
 
@@ -205,7 +202,7 @@ function Landing() {
               </Suspense>
             )}
             <div className="pointer-events-none absolute bottom-2 left-2 font-mono text-[11px] text-muted-foreground">
-              live scan activity · 7 regions
+              Semgrep · Gitleaks · OSV.dev · EPSS
             </div>
           </div>
         </section>

@@ -9,7 +9,10 @@ import { DastPanel } from "@/components/scan/DastPanel";
 import { type Sector, type Finding, type TreeNode, buildFileTreeFromFindings } from "@/lib/scan-data";
 
 export const Route = createFileRoute("/scan")({
-  validateSearch: z.object({ repo: z.string().default("") }),
+  validateSearch: z.object({
+    repo: z.string().default(""),
+    dastUrl: z.string().default(""),
+  }),
   head: () => ({
     meta: [
       { title: "Scan results — AVSS" },
@@ -31,51 +34,60 @@ export const Route = createFileRoute("/scan")({
 });
 
 function ScanDashboard() {
-  const { repo } = Route.useSearch();
+  const { repo, dastUrl } = Route.useSearch();
+
+  // If a dastUrl is present, open DAST tab by default; otherwise SAST
+  const initialTab = dastUrl && !repo ? "dast" : "static";
+
   const [scanning, setScanning] = useState(true);
   const [sector, setSector] = useState<Sector>("fintech");
   const [applied, setApplied] = useState(false);
   const [focusPath, setFocusPath] = useState<string | null>(null);
-  const [tab, setTab] = useState<"static" | "dast">("static");
-  
+  const [tab, setTab] = useState<"static" | "dast">(initialTab);
+
   const [findings, setFindings] = useState<Finding[]>([]);
   const [fileTree, setFileTree] = useState<TreeNode[]>([]);
-  const [sectorConfidence, setSectorConfidence] = useState<Record<Sector, number>>({ fintech: 0, healthcare: 0, ecommerce: 0, general: 1 });
+  const [sectorConfidence, setSectorConfidence] = useState<Record<Sector, number>>({
+    fintech: 0, healthcare: 0, ecommerce: 0, general: 1,
+  });
   const [sectorEvidence, setSectorEvidence] = useState<string[]>([]);
   const [scanError, setScanError] = useState<string | null>(null);
-  
-  const cached = /demo|cached|offline/i.test(repo);
+  const [scanId, setScanId] = useState<string | undefined>(undefined);
+
+  // Only run SAST scan if there's a repo URL and we're NOT purely in DAST mode
+  const shouldRunSast = !!repo && !(dastUrl && !repo);
 
   useEffect(() => {
-    if (!repo) {
+    if (!shouldRunSast) {
       setScanning(false);
       return;
     }
 
     let isMounted = true;
-    
+
     async function runScan() {
       try {
         setScanning(true);
         setScanError(null);
-        
-        const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
-        
+
+        const API_URL = (import.meta.env as any)['VITE_API_URL'] || "http://localhost:5000";
+
         // 1. SAST Scan
         const sastRes = await fetch(`${API_URL}/scan/sast`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ repoUrl: repo })
+          body: JSON.stringify({ repoUrl: repo }),
         });
-        
+
         if (!sastRes.ok) throw new Error("SAST scan failed");
-        
+
         const sastData = await sastRes.json();
-        
-        // Ensure snippets are in array format for the UI
+        if (sastData.scanId) setScanId(sastData.scanId);
+
+        // Normalise codeSnippet → snippet array for the UI
         const parsedFindings: Finding[] = (sastData.findings || []).map((f: any) => {
           if (f.codeSnippet && !f.snippet) {
-            const lines = f.codeSnippet.split('\n');
+            const lines = f.codeSnippet.split("\n");
             const startLine = Math.max(1, (f.lineNumber || 1) - Math.floor(lines.length / 2));
             f.snippet = lines.map((l: string, i: number) => ({ n: startLine + i, code: l }));
           }
@@ -92,22 +104,23 @@ function ScanDashboard() {
             findings: parsedFindings,
             repoTextSample: sastData.repoTextSample || "",
             detectedRoutes: sastData.detectedRoutes || [],
-          })
+          }),
         });
 
         if (!scoreRes.ok) throw new Error("Scoring failed");
 
         const scoreData = await scoreRes.json();
-        
+
         if (!isMounted) return;
 
         const finalFindings = scoreData.findings || parsedFindings;
         setFindings(finalFindings);
         setFileTree(buildFileTreeFromFindings(finalFindings));
         setSector(scoreData.suggestedSector || "general");
-        setSectorConfidence(scoreData.scores || { fintech: 0, healthcare: 0, ecommerce: 0, general: 1 });
+        setSectorConfidence(
+          scoreData.scores || { fintech: 0, healthcare: 0, ecommerce: 0, general: 1 }
+        );
         setSectorEvidence(scoreData.matchedEvidence || []);
-        
       } catch (err: any) {
         if (isMounted) setScanError(err.message || "An error occurred");
       } finally {
@@ -118,22 +131,18 @@ function ScanDashboard() {
     runScan();
 
     return () => { isMounted = false; };
-  }, [repo]);
+  }, [repo, shouldRunSast]);
 
   const handleSectorChange = async (newSector: Sector) => {
     setSector(newSector);
     setApplied(false);
-    
-    // Re-score findings via backend
+
     try {
-      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+      const API_URL = (import.meta.env as any)['VITE_API_URL'] || "http://localhost:5000";
       const scoreRes = await fetch(`${API_URL}/score`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          findings,
-          sector: newSector,
-        })
+        body: JSON.stringify({ findings, sector: newSector }),
       });
       if (scoreRes.ok) {
         const data = await scoreRes.json();
@@ -147,7 +156,10 @@ function ScanDashboard() {
   const selectFile = (path: string) => {
     setFocusPath(path);
     const f = findings.find((x) => x.filePath === path);
-    if (f) document.getElementById(`finding-${f.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (f)
+      document
+        .getElementById(`finding-${f.id}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
 
   return (
@@ -162,7 +174,9 @@ function ScanDashboard() {
               <button
                 onClick={() => setTab("static")}
                 className={`rounded-md px-3 py-1.5 text-xs transition-colors ${
-                  tab === "static" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground"
+                  tab === "static"
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 Static analysis
@@ -170,7 +184,9 @@ function ScanDashboard() {
               <button
                 onClick={() => setTab("dast")}
                 className={`rounded-md px-3 py-1.5 text-xs transition-colors ${
-                  tab === "dast" ? "bg-dast/15 text-dast" : "text-muted-foreground hover:text-foreground"
+                  tab === "dast"
+                    ? "bg-dast/15 text-dast"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 DAST
@@ -187,30 +203,31 @@ function ScanDashboard() {
       </header>
 
       <main className="mx-auto max-w-7xl space-y-4 px-6 py-6">
-        {cached && (
-          <div className="rounded-lg border border-sev-medium/40 bg-sev-medium/10 px-4 py-2.5 text-xs text-sev-medium">
-            Live scan unavailable — showing cached scan from 14 Jul 2026, 09:22 UTC.
-          </div>
-        )}
-        
-        {scanError && (
+        {scanError && tab === "static" && (
           <div className="rounded-lg border border-sev-critical/40 bg-sev-critical/10 px-4 py-2.5 text-xs text-sev-critical">
             {scanError}
           </div>
         )}
 
-        {repo ? (
-          <ScanProgress repo={repo} isScanning={scanning} findingsCount={findings.length} />
-        ) : (
-          <div className="rounded-lg border border-border bg-panel/60 px-4 py-2.5 text-xs text-muted-foreground">
-            No repository selected. Please go back and enter a repository URL.
-          </div>
-        )}
-
         {tab === "dast" ? (
-          <DastPanel />
+          /* ── DAST view — completely independent of SAST state ─────────── */
+          <DastPanel initialUrl={dastUrl || ""} />
         ) : (
+          /* ── Static analysis view ─────────────────────────────────────── */
           <>
+            {repo ? (
+              <ScanProgress
+                repo={repo}
+                isScanning={scanning}
+                findingsCount={findings.length}
+                {...(scanId ? { scanId } : {})}
+              />
+            ) : (
+              <div className="rounded-lg border border-border bg-panel/60 px-4 py-2.5 text-xs text-muted-foreground">
+                No repository selected. Please go back and enter a repository URL.
+              </div>
+            )}
+
             <SectorPanel
               sector={sector}
               onSector={handleSectorChange}
@@ -230,7 +247,12 @@ function ScanDashboard() {
                 findings={findings}
               />
               <div className={scanning ? "pointer-events-none opacity-50" : ""}>
-                <FindingsTable sector={sector} applied={applied} focusPath={focusPath} findings={findings} />
+                <FindingsTable
+                  sector={sector}
+                  applied={applied}
+                  focusPath={focusPath}
+                  findings={findings}
+                />
               </div>
             </div>
           </>

@@ -47,7 +47,7 @@ function ExpandedRow({ f, sector }: { f: Finding; sector: Sector }) {
       setLoadingFix(true);
       setShowFix(true);
       try {
-        const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+        const API_URL = (import.meta.env as any)['VITE_API_URL'] || "http://localhost:5000";
         const res = await fetch(`${API_URL}/suggest-fix`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -229,7 +229,7 @@ export function FindingsTable({
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm text-foreground">{f.title}</p>
                   <p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">
-                    {f.filePath}:{f.lineNumber ?? f.line} · {f.tool ?? f.source ?? "unknown"}
+                    {f.filePath}:{f.lineNumber} · {f.tool ?? f.source ?? "unknown"}
                   </p>
                 </div>
                 <span

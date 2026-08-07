@@ -79,7 +79,8 @@ export function buildFileTreeFromFindings(findings: Finding[]): TreeNode[] {
       } else {
         // If it was already added as a file, but now it's a dir, update it
         if (isDir) {
-          tree[currentPath].isDir = true;
+          const existing = tree[currentPath];
+          if (existing) existing.isDir = true;
         }
       }
     });
@@ -100,16 +101,83 @@ export function maxScoreForPath(
 ): number {
   const matches = findings.filter((f) => f.filePath === path || f.filePath.startsWith(path + "/"));
   if (!matches.length) return 0;
-  return Math.max(
-    ...matches.map((f) => (applied ? avss(f, sector) : f.baseSeverity ?? f.baseline ?? 0))
-  );
+  const scores = matches.map((f) => (applied ? avss(f, sector) : f.baseSeverity ?? f.baseline ?? 0));
+  return Math.max(0, ...scores);
 }
 
+// These labels must match what the server emits via GET /scan/sast/progress/:scanId
 export const SCAN_STAGES = [
-  "Cloning repo…",
-  "Running Semgrep…",
+  "Cloning repository…",
+  "Running Semgrep (general rules)…",
   "Checking for exposed secrets…",
-  "Validating card-number matches…",
-  "Cross-referencing CVEs…",
-  "Weighting by EPSS…",
+  "Running custom sector-pattern rules…",
+  "Validating card-number matches (Luhn)…",
+  "Cross-referencing CVEs (OSV.dev + EPSS)…",
+  "Extracting routes and repo metadata…",
+  "Deduplicating and ranking findings…",
+  "Scan complete.",
 ];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DAST types
+// ─────────────────────────────────────────────────────────────────────────────
+export type DastResult = "pass" | "fail" | "warn" | "info";
+
+export type DastCheck = {
+  id: string;
+  category: "TLS" | "Headers" | "Cookies" | "Info Leakage";
+  name: string;
+  result: DastResult;
+  severity: number; // 0–10 (0 = passing check, no risk)
+  description: string;
+  remediation: string | null;
+  evidence: string;
+};
+
+export type DastSummary = {
+  grade: "A+" | "A" | "B" | "C" | "D" | "F";
+  failCount: number;
+  warnCount: number;
+  passCount: number;
+  avgSeverity: number;
+  categoryScores: Record<string, number>;
+  topFindings: string[];
+};
+
+export type DastScanResult = {
+  checks: DastCheck[];
+  summary: DastSummary;
+  stages: { ts: number; label: string }[];
+  targetUrl: string;
+};
+
+export const DAST_STAGES = [
+  "Checking TLS configuration…",
+  "Fetching security headers…",
+  "Analysing cookie security…",
+  "Checking for info leakage…",
+  "Computing risk summary…",
+];
+
+export const DAST_CATEGORY_COLOR: Record<string, string> = {
+  TLS:           "var(--sev-critical)",
+  Headers:       "var(--primary)",
+  Cookies:       "var(--sev-medium)",
+  "Info Leakage": "var(--sev-high)",
+};
+
+export function dastResultColor(result: DastResult): string {
+  switch (result) {
+    case "fail": return "var(--sev-critical)";
+    case "warn": return "var(--sev-medium)";
+    case "pass": return "var(--sev-low)";
+    default:     return "var(--muted-foreground)";
+  }
+}
+
+export function gradeColor(grade: string): string {
+  if (grade === "A+" || grade === "A") return "var(--sev-low)";
+  if (grade === "B") return "var(--primary)";
+  if (grade === "C") return "var(--sev-medium)";
+  return "var(--sev-critical)";
+}
