@@ -3,43 +3,62 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
+const SEMGREP_TIMEOUT_MS = 90_000; // 90s cap — prevents hanging on large repos
+
 function generateFindingId(source, type, filePath, lineNumber, extra = '') {
-  const hash = crypto.createHash('md5').update(`${source}:${type}:${filePath}:${lineNumber}:${extra}`).digest('hex').substring(0, 10);
+  const hash = crypto
+    .createHash('md5')
+    .update(`${source}:${type}:${filePath}:${lineNumber}:${extra}`)
+    .digest('hex')
+    .substring(0, 10);
   return `${source}-${hash}`;
 }
 
-async function runSemgrep(targetDir) {
+async function runSemgrep(targetDir, customRulesPath) {
   const findings = [];
 
+  // Build command: always run --config=auto; also layer in custom YAML rules if present
+  const configFlags = ['--config=auto'];
+  if (customRulesPath && fs.existsSync(customRulesPath)) {
+    configFlags.push(`--config="${customRulesPath}"`);
+  }
+
+  const cmd = `semgrep ${configFlags.join(' ')} --json "${targetDir}"`;
+
   try {
-    const stdout = execSync(`semgrep --config=auto --json "${targetDir}"`, {
+    const stdout = execSync(cmd, {
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'ignore'],
-      maxBuffer: 10 * 1024 * 1024
+      maxBuffer: 20 * 1024 * 1024,
+      timeout: SEMGREP_TIMEOUT_MS
     });
 
     const parsed = JSON.parse(stdout);
     if (parsed.results && Array.isArray(parsed.results)) {
       for (const res of parsed.results) {
+        // Semgrep severity can be 'ERROR', 'WARNING', 'INFO' — drop INFO to reduce noise
         const severityStr = (res.extra?.severity || 'WARNING').toUpperCase();
         if (severityStr === 'INFO') continue;
 
         const relPath = path.relative(targetDir, res.path).replace(/\\/g, '/');
-        const baseSeverity = severityStr === 'ERROR' ? 8.5 : 6.0;
+        const baseSeverity = mapSeverityToScore(severityStr, res.extra?.metadata);
         const type = mapSemgrepRuleToType(res.check_id || 'generic-sast');
         const lineNum = res.start?.line || 1;
 
         findings.push({
           id: generateFindingId('semgrep', type, relPath, lineNum, res.check_id),
           source: 'semgrep',
-          type: type,
+          type,
           title: res.extra?.message || res.check_id || 'SAST Vulnerability',
-          description: res.extra?.metadata?.shortlink || res.extra?.message || 'Semgrep detected potential security issue.',
+          description:
+            res.extra?.metadata?.shortlink ||
+            res.extra?.message ||
+            'Semgrep detected potential security issue.',
           filePath: relPath,
           lineNumber: lineNum,
           codeSnippet: (res.extra?.lines || '').trim(),
-          baseSeverity: baseSeverity,
-          cveId: null,
+          baseSeverity,
+          cveId: res.extra?.metadata?.cve || null,
           epssScore: null,
           evidence: `Semgrep check: ${res.check_id} [${severityStr}]`
         });
@@ -48,21 +67,51 @@ async function runSemgrep(targetDir) {
       return findings;
     }
   } catch (err) {
-    // CLI fallback
+    if (err.code === 'ETIMEDOUT') {
+      console.warn('[semgrepRunner] Semgrep timed out — falling back to pattern scanner');
+    } else {
+      console.warn('[semgrepRunner] Semgrep not available or errored:', err.message);
+    }
   }
 
   return runFallbackSemgrep(targetDir);
 }
 
+/**
+ * Maps Semgrep severity string + optional CVSS metadata to a 0–10 numeric base score.
+ */
+function mapSeverityToScore(severityStr, metadata) {
+  // Prefer CVSS score from metadata if present
+  if (metadata?.cvss) {
+    const n = parseFloat(metadata.cvss);
+    if (!isNaN(n)) return Math.min(10, n);
+  }
+  switch (severityStr) {
+    case 'ERROR':   return 8.5;
+    case 'WARNING': return 6.0;
+    default:        return 4.0;
+  }
+}
+
 function mapSemgrepRuleToType(ruleId) {
   const lower = ruleId.toLowerCase();
-  if (lower.includes('sql') || lower.includes('sqli')) return 'sql-injection';
-  if (lower.includes('xss') || lower.includes('html')) return 'cross-site-scripting';
-  if (lower.includes('deserial') || lower.includes('eval') || lower.includes('pickle')) return 'insecure-deserialization';
-  if (lower.includes('auth') || lower.includes('jwt') || lower.includes('session')) return 'missing-authentication';
+  if (lower.includes('sql') || lower.includes('sqli'))              return 'sql-injection';
+  if (lower.includes('xss') || lower.includes('html-inject'))       return 'cross-site-scripting';
+  if (lower.includes('deserial') || lower.includes('eval') ||
+      lower.includes('pickle') || lower.includes('unsafe-load'))    return 'insecure-deserialization';
+  if (lower.includes('auth') || lower.includes('jwt') ||
+      lower.includes('session') || lower.includes('csrf'))          return 'missing-authentication';
+  if (lower.includes('path-traversal') || lower.includes('directory-traversal')) return 'path-traversal';
+  if (lower.includes('ssrf'))                                        return 'ssrf';
+  if (lower.includes('xxe'))                                         return 'xxe';
+  if (lower.includes('command') || lower.includes('exec') ||
+      lower.includes('shell'))                                       return 'command-injection';
   return 'generic-sast-finding';
 }
 
+// ---------------------------------------------------------------------------
+// Fallback: pure-regex SAST scan when Semgrep binary is not available
+// ---------------------------------------------------------------------------
 function runFallbackSemgrep(targetDir) {
   const findings = [];
   const files = getAllFiles(targetDir);
@@ -85,16 +134,30 @@ function runFallbackSemgrep(targetDir) {
     {
       type: 'insecure-deserialization',
       title: 'Insecure Deserialization / Dynamic Evaluation',
-      regex: /\b(eval|serialize\.unserialize|pickle\.loads|yaml\.unsafe_load)\s*\(/i,
+      regex: /\b(eval|serialize\.unserialize|pickle\.loads|yaml\.unsafe_load|unserialize)\s*\(/i,
       severity: 9.0,
       description: 'Execution of untrusted serialized payload or dynamic code string.'
     },
     {
       type: 'missing-authentication',
       title: 'Unauthenticated Sensitive Route Handler',
-      regex: /app\.(post|put|delete)\s*\(\s*["']\/(admin|internal|delete|update).*?["']\s*,\s*async\s*\([^\)]*\)\s*=>/i,
+      regex: /app\.(post|put|delete)\s*\(\s*["']\/(admin|internal|delete|update|manage).*?["']\s*,\s*(async\s*)?\([^)]*\)\s*=>/i,
       severity: 7.5,
       description: 'Administrative or sensitive endpoint defined without authentication middleware.'
+    },
+    {
+      type: 'command-injection',
+      title: 'Potential Command Injection',
+      regex: /(exec|execSync|spawn|spawnSync|system)\s*\(\s*.*?(req\.(query|body|params)|user_input)/i,
+      severity: 9.5,
+      description: 'Shell command constructed from user-controlled input — potential command injection.'
+    },
+    {
+      type: 'path-traversal',
+      title: 'Potential Path Traversal',
+      regex: /fs\.(readFile|writeFile|readFileSync|writeFileSync|unlink|access)\s*\(\s*.*?(req\.(query|body|params)|user_input)/i,
+      severity: 8.0,
+      description: 'File path derived from user input — potential path traversal / local file inclusion.'
     }
   ];
 
@@ -123,12 +186,14 @@ function runFallbackSemgrep(targetDir) {
               baseSeverity: pattern.severity,
               cveId: null,
               epssScore: null,
-              evidence: `Generic SAST pattern match: '${line.trim()}'`
+              evidence: `Fallback SAST pattern match: '${line.trim().substring(0, 60)}'`
             });
           }
         }
       });
-    } catch (e) {}
+    } catch (e) {
+      // skip unreadable files
+    }
   }
 
   return findings;
@@ -138,7 +203,7 @@ function getAllFiles(dir, fileList = []) {
   if (!fs.existsSync(dir)) return fileList;
   const files = fs.readdirSync(dir);
   for (const file of files) {
-    if (file === 'node_modules' || file === '.git' || file === 'dist' || file === 'build') continue;
+    if (['node_modules', '.git', 'dist', 'build', 'vendor'].includes(file)) continue;
     const filePath = path.join(dir, file);
     if (fs.statSync(filePath).isDirectory()) {
       getAllFiles(filePath, fileList);
