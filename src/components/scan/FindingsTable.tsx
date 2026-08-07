@@ -1,8 +1,13 @@
 import { useMemo, useState, useCallback } from "react";
 import { AnimatePresence, motion } from "motion/react";
+<<<<<<< HEAD
 import { avss, scoreColor, severityBucket, BUCKET_COLOR, type Finding, type Sector } from "@/lib/scan-data";
 
 // ── Syntax-highlighted code ────────────────────────────────────────────────
+=======
+import { avss, scoreColor, type Finding, type Sector } from "@/lib/scan-data";
+
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
 const SEV_COLOR: Record<NonNullable<Finding["severity"]>, string> = {
   critical: "var(--sev-critical)",
   high:     "var(--sev-high)",
@@ -40,13 +45,21 @@ function ExpandedRow({ f, sector }: { f: Finding; sector: Sector }) {
   const [loadingFix, setLoadingFix] = useState(false);
   const [fixDiff, setFixDiff] = useState<Finding["diff"]>(f.diff);
   const [fixNote, setFixNote] = useState<string | undefined>(f.fixNote);
+<<<<<<< HEAD
 
+=======
+  
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
   const handleSuggestFix = async () => {
     if (!showFix && !fixDiff) {
       setLoadingFix(true);
       setShowFix(true);
       try {
+<<<<<<< HEAD
         const API_URL = (import.meta.env as any)["VITE_API_URL"] || "http://localhost:5000";
+=======
+        const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
         const res = await fetch(`${API_URL}/suggest-fix`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -67,9 +80,12 @@ function ExpandedRow({ f, sector }: { f: Finding; sector: Sector }) {
     }
   };
 
+<<<<<<< HEAD
   const score = avss(f, sector);
   const bucket = severityBucket(score);
 
+=======
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
   return (
     <div className="border-t border-border bg-background/40 px-4 py-4">
       <div className="grid gap-4 lg:grid-cols-[1.15fr_1fr]">
@@ -80,7 +96,11 @@ function ExpandedRow({ f, sector }: { f: Finding; sector: Sector }) {
               <div
                 key={l.n}
                 className={`flex gap-3 px-3 py-1 font-mono text-[11.5px] ${
+<<<<<<< HEAD
                   l.n === f.lineNumber ? "bg-sev-critical/10" : ""
+=======
+                  l.n === (f.lineNumber ?? f.lineNumber) ? "bg-sev-critical/10" : ""
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
                 }`}
               >
                 <span className="w-8 shrink-0 text-right text-muted-foreground/60">{l.n}</span>
@@ -96,6 +116,7 @@ function ExpandedRow({ f, sector }: { f: Finding; sector: Sector }) {
 
         {/* Meta + actions */}
         <div className="space-y-3">
+<<<<<<< HEAD
           {/* AVSS score breakdown */}
           <div className="rounded-md border border-border bg-panel/40 px-3 py-2 space-y-1">
             <p className="font-mono text-[10px] tracking-widest text-muted-foreground uppercase">AVSS score breakdown</p>
@@ -112,11 +133,25 @@ function ExpandedRow({ f, sector }: { f: Finding; sector: Sector }) {
                 {f.cveId && <span className="ml-2">{f.cveId}</span>}
               </p>
             )}
+=======
+          <div>
+            <p className="font-mono text-[10px] tracking-[0.14em] text-muted-foreground uppercase">
+              Evidence
+            </p>
+            <p className="mt-1 text-xs text-foreground">{f.evidence ?? f.reason ?? "Identified by scanner"}</p>
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
           </div>
 
           <div>
+<<<<<<< HEAD
             <p className="font-mono text-[10px] tracking-[0.14em] text-muted-foreground uppercase">Evidence</p>
             <p className="mt-1 text-xs text-foreground">{f.evidence ?? f.reason ?? "Identified by scanner"}</p>
+=======
+            <p className="font-mono text-[10px] tracking-[0.14em] text-muted-foreground uppercase">
+              Regulatory context
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">{f.citations?.[sector] ?? f.regulatoryTag ?? "No specific regulation cited."}</p>
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
           </div>
 
           <div>
@@ -145,8 +180,13 @@ function ExpandedRow({ f, sector }: { f: Finding; sector: Sector }) {
             className="overflow-hidden"
           >
             {loadingFix ? (
+<<<<<<< HEAD
               <div className="mt-4 rounded-md border border-border bg-panel/60 p-4">
                 <p className="animate-pulse text-xs text-muted-foreground">Generating remediation patch…</p>
+=======
+              <div className="mt-4 p-4 rounded-md border border-border bg-panel/60">
+                <p className="text-xs text-muted-foreground animate-pulse">Generating AI patch and remediation plan...</p>
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
               </div>
             ) : fixDiff ? (
               <>
@@ -167,7 +207,16 @@ function ExpandedRow({ f, sector }: { f: Finding; sector: Sector }) {
                       <span
                         className="w-3 shrink-0"
                         style={{
+<<<<<<< HEAD
                           color: d.sign === "+" ? "var(--sev-low)" : d.sign === "-" ? "var(--sev-critical)" : "var(--muted-foreground)",
+=======
+                          color:
+                            d.sign === "+"
+                              ? "var(--sev-low)"
+                              : d.sign === "-"
+                                ? "var(--sev-critical)"
+                                : "var(--muted-foreground)",
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
                         }}
                       >
                         {d.sign}
@@ -181,8 +230,13 @@ function ExpandedRow({ f, sector }: { f: Finding; sector: Sector }) {
                 {fixNote && <p className="mt-2 text-xs text-muted-foreground">{fixNote}</p>}
               </>
             ) : (
+<<<<<<< HEAD
               <div className="mt-4 rounded-md border border-border bg-panel/60 p-4">
                 <p className="italic text-xs text-muted-foreground">No fix available.</p>
+=======
+              <div className="mt-4 p-4 rounded-md border border-border bg-panel/60">
+                <p className="text-xs text-muted-foreground italic">No fix available for this finding.</p>
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
               </div>
             )}
           </motion.div>
@@ -239,6 +293,7 @@ export function FindingsTable({
   findings: Finding[];
 }) {
   const [open, setOpen] = useState<string | null>(null);
+<<<<<<< HEAD
   const [filterSource, setFilterSource] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -303,6 +358,14 @@ export function FindingsTable({
     "custom-rule": "var(--sev-medium)",
     sca:           "var(--sev-high)",
   };
+=======
+
+  const rows = useMemo(() => {
+    return [...findings].sort((a, b) =>
+      applied ? avss(b, sector) - avss(a, sector) : (b.baseSeverity ?? b.baseline ?? 0) - (a.baseSeverity ?? a.baseline ?? 0),
+    );
+  }, [sector, applied, findings]);
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
 
   return (
     <div className="panel overflow-hidden rounded-xl">
@@ -410,6 +473,7 @@ export function FindingsTable({
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm text-foreground">{f.title}</p>
                   <p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">
+<<<<<<< HEAD
                     {f.filePath}:{f.lineNumber} ·{" "}
                     <span style={{ color: SOURCE_COLOR[f.source ?? ""] ?? "var(--muted-foreground)" }}>
                       {f.source ?? f.tool ?? "unknown"}
@@ -417,18 +481,33 @@ export function FindingsTable({
                     {f.cveId && (
                       <span className="ml-2 text-muted-foreground/60">{f.cveId}</span>
                     )}
+=======
+                    {f.filePath}:{f.lineNumber ?? f.line} · {f.tool ?? f.source ?? "unknown"}
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
                   </p>
                 </div>
 
                 <span
                   className="hidden shrink-0 rounded-full border px-2 py-0.5 font-mono text-[10px] sm:block"
+<<<<<<< HEAD
                   style={{ color: BUCKET_COLOR[bucket], borderColor: BUCKET_COLOR[bucket] }}
                 >
                   {bucket}
+=======
+                  style={{ color: SEV_COLOR[f.severity ?? "low"], borderColor: SEV_COLOR[f.severity ?? "low"] }}
+                >
+                  {f.severity ?? "low"}
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
                 </span>
 
                 <div className="flex shrink-0 items-baseline gap-2 font-mono tabular-nums">
+<<<<<<< HEAD
                   <span className="text-xs text-muted-foreground line-through">{base.toFixed(1)}</span>
+=======
+                  <span className="text-xs text-muted-foreground line-through">
+                    {base.toFixed(1)}
+                  </span>
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
                   <motion.span
                     key={`${live}`}
                     initial={{ opacity: 0.4, y: -3 }}

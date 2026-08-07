@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
+<<<<<<< HEAD
 const SEMGREP_TIMEOUT_MS = 90_000; // 90s cap — prevents hanging on large repos
 
 function generateFindingId(source, type, filePath, lineNumber, extra = '') {
@@ -31,23 +32,46 @@ async function runSemgrep(targetDir, customRulesPath) {
       stdio: ['pipe', 'pipe', 'ignore'],
       maxBuffer: 20 * 1024 * 1024,
       timeout: SEMGREP_TIMEOUT_MS
+=======
+function generateFindingId(source, type, filePath, lineNumber, extra = '') {
+  const hash = crypto.createHash('md5').update(`${source}:${type}:${filePath}:${lineNumber}:${extra}`).digest('hex').substring(0, 10);
+  return `${source}-${hash}`;
+}
+
+async function runSemgrep(targetDir) {
+  const findings = [];
+
+  try {
+    const stdout = execSync(`semgrep --config=auto --json "${targetDir}"`, {
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'ignore'],
+      maxBuffer: 10 * 1024 * 1024
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
     });
 
     const parsed = JSON.parse(stdout);
     if (parsed.results && Array.isArray(parsed.results)) {
       for (const res of parsed.results) {
+<<<<<<< HEAD
         // Semgrep severity can be 'ERROR', 'WARNING', 'INFO' — drop INFO to reduce noise
+=======
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
         const severityStr = (res.extra?.severity || 'WARNING').toUpperCase();
         if (severityStr === 'INFO') continue;
 
         const relPath = path.relative(targetDir, res.path).replace(/\\/g, '/');
+<<<<<<< HEAD
         const baseSeverity = mapSeverityToScore(severityStr, res.extra?.metadata);
+=======
+        const baseSeverity = severityStr === 'ERROR' ? 8.5 : 6.0;
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
         const type = mapSemgrepRuleToType(res.check_id || 'generic-sast');
         const lineNum = res.start?.line || 1;
 
         findings.push({
           id: generateFindingId('semgrep', type, relPath, lineNum, res.check_id),
           source: 'semgrep',
+<<<<<<< HEAD
           type,
           title: res.extra?.message || res.check_id || 'SAST Vulnerability',
           description:
@@ -59,6 +83,16 @@ async function runSemgrep(targetDir, customRulesPath) {
           codeSnippet: (res.extra?.lines || '').trim(),
           baseSeverity,
           cveId: res.extra?.metadata?.cve || null,
+=======
+          type: type,
+          title: res.extra?.message || res.check_id || 'SAST Vulnerability',
+          description: res.extra?.metadata?.shortlink || res.extra?.message || 'Semgrep detected potential security issue.',
+          filePath: relPath,
+          lineNumber: lineNum,
+          codeSnippet: (res.extra?.lines || '').trim(),
+          baseSeverity: baseSeverity,
+          cveId: null,
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
           epssScore: null,
           evidence: `Semgrep check: ${res.check_id} [${severityStr}]`
         });
@@ -67,16 +101,21 @@ async function runSemgrep(targetDir, customRulesPath) {
       return findings;
     }
   } catch (err) {
+<<<<<<< HEAD
     if (err.code === 'ETIMEDOUT') {
       console.warn('[semgrepRunner] Semgrep timed out — falling back to pattern scanner');
     } else {
       console.warn('[semgrepRunner] Semgrep not available or errored:', err.message);
     }
+=======
+    // CLI fallback
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
   }
 
   return runFallbackSemgrep(targetDir);
 }
 
+<<<<<<< HEAD
 /**
  * Maps Semgrep severity string + optional CVSS metadata to a 0–10 numeric base score.
  */
@@ -112,6 +151,17 @@ function mapSemgrepRuleToType(ruleId) {
 // ---------------------------------------------------------------------------
 // Fallback: pure-regex SAST scan when Semgrep binary is not available
 // ---------------------------------------------------------------------------
+=======
+function mapSemgrepRuleToType(ruleId) {
+  const lower = ruleId.toLowerCase();
+  if (lower.includes('sql') || lower.includes('sqli')) return 'sql-injection';
+  if (lower.includes('xss') || lower.includes('html')) return 'cross-site-scripting';
+  if (lower.includes('deserial') || lower.includes('eval') || lower.includes('pickle')) return 'insecure-deserialization';
+  if (lower.includes('auth') || lower.includes('jwt') || lower.includes('session')) return 'missing-authentication';
+  return 'generic-sast-finding';
+}
+
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
 function runFallbackSemgrep(targetDir) {
   const findings = [];
   const files = getAllFiles(targetDir);
@@ -134,13 +184,18 @@ function runFallbackSemgrep(targetDir) {
     {
       type: 'insecure-deserialization',
       title: 'Insecure Deserialization / Dynamic Evaluation',
+<<<<<<< HEAD
       regex: /\b(eval|serialize\.unserialize|pickle\.loads|yaml\.unsafe_load|unserialize)\s*\(/i,
+=======
+      regex: /\b(eval|serialize\.unserialize|pickle\.loads|yaml\.unsafe_load)\s*\(/i,
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
       severity: 9.0,
       description: 'Execution of untrusted serialized payload or dynamic code string.'
     },
     {
       type: 'missing-authentication',
       title: 'Unauthenticated Sensitive Route Handler',
+<<<<<<< HEAD
       regex: /app\.(post|put|delete)\s*\(\s*["']\/(admin|internal|delete|update|manage).*?["']\s*,\s*(async\s*)?\([^)]*\)\s*=>/i,
       severity: 7.5,
       description: 'Administrative or sensitive endpoint defined without authentication middleware.'
@@ -158,6 +213,11 @@ function runFallbackSemgrep(targetDir) {
       regex: /fs\.(readFile|writeFile|readFileSync|writeFileSync|unlink|access)\s*\(\s*.*?(req\.(query|body|params)|user_input)/i,
       severity: 8.0,
       description: 'File path derived from user input — potential path traversal / local file inclusion.'
+=======
+      regex: /app\.(post|put|delete)\s*\(\s*["']\/(admin|internal|delete|update).*?["']\s*,\s*async\s*\([^\)]*\)\s*=>/i,
+      severity: 7.5,
+      description: 'Administrative or sensitive endpoint defined without authentication middleware.'
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
     }
   ];
 
@@ -186,14 +246,22 @@ function runFallbackSemgrep(targetDir) {
               baseSeverity: pattern.severity,
               cveId: null,
               epssScore: null,
+<<<<<<< HEAD
               evidence: `Fallback SAST pattern match: '${line.trim().substring(0, 60)}'`
+=======
+              evidence: `Generic SAST pattern match: '${line.trim()}'`
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
             });
           }
         }
       });
+<<<<<<< HEAD
     } catch (e) {
       // skip unreadable files
     }
+=======
+    } catch (e) {}
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
   }
 
   return findings;
@@ -203,7 +271,11 @@ function getAllFiles(dir, fileList = []) {
   if (!fs.existsSync(dir)) return fileList;
   const files = fs.readdirSync(dir);
   for (const file of files) {
+<<<<<<< HEAD
     if (['node_modules', '.git', 'dist', 'build', 'vendor'].includes(file)) continue;
+=======
+    if (file === 'node_modules' || file === '.git' || file === 'dist' || file === 'build') continue;
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
     const filePath = path.join(dir, file);
     if (fs.statSync(filePath).isDirectory()) {
       getAllFiles(filePath, fileList);

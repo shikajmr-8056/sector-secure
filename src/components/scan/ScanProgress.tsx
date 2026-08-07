@@ -5,11 +5,15 @@ export function ScanProgress({
   repo,
   isScanning,
   findingsCount,
+<<<<<<< HEAD
   scanId,
+=======
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
 }: {
   repo: string;
   isScanning: boolean;
   findingsCount: number;
+<<<<<<< HEAD
   /** scanId returned by POST /scan/sast — used to subscribe to real SSE progress */
   scanId?: string;
 }) {
@@ -77,6 +81,25 @@ export function ScanProgress({
   const displayStage = done
     ? `Scan complete · ${findingsCount} finding${findingsCount !== 1 ? "s" : ""}`
     : liveStage || SCAN_STAGES[stageIndex] || "Initialising…";
+=======
+}) {
+  const [stage, setStage] = useState(0);
+
+  useEffect(() => {
+    if (!isScanning) {
+      setStage(SCAN_STAGES.length);
+      return;
+    }
+    if (stage >= SCAN_STAGES.length - 1) {
+      return;
+    }
+    const t = setTimeout(() => setStage((s) => s + 1), 750);
+    return () => clearTimeout(t);
+  }, [stage, isScanning]);
+
+  const done = !isScanning;
+  const pct = done ? 100 : Math.min(95, (stage / SCAN_STAGES.length) * 100);
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
 
   return (
     <div className="panel rounded-xl px-5 py-4">
@@ -84,7 +107,13 @@ export function ScanProgress({
         <p className="font-mono text-xs text-muted-foreground">
           <span className="text-primary">▸</span> {repo}
         </p>
+<<<<<<< HEAD
         <p className="font-mono text-xs text-foreground">{displayStage}</p>
+=======
+        <p className="font-mono text-xs text-foreground">
+          {done ? `Scan complete · ${findingsCount} findings` : SCAN_STAGES[stage] || "Wrapping up…"}
+        </p>
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
       </div>
 
       <div className="relative mt-3 h-[3px] w-full overflow-hidden rounded-full bg-muted">
@@ -105,15 +134,26 @@ export function ScanProgress({
           <span
             key={s}
             className={
+<<<<<<< HEAD
               done || i < effectiveIndex
                 ? "text-primary/70"
                 : i === effectiveIndex
+=======
+              done || i < stage
+                ? "text-primary/70"
+                : i === stage
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
                   ? "text-foreground"
                   : "text-muted-foreground/40"
             }
           >
+<<<<<<< HEAD
             {done || i < effectiveIndex ? "✓ " : "· "}
             {s.replace(/…$/, "").replace(/\.$/, "")}
+=======
+            {done || i < stage ? "✓ " : "· "}
+            {s.replace("…", "")}
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
           </span>
         ))}
       </div>

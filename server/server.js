@@ -1,6 +1,9 @@
 const express = require('express');
 const cors = require('cors');
+<<<<<<< HEAD
 const path = require('path');
+=======
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
 require('dotenv').config();
 
 const { cloneRepo } = require('./src/scanner/gitCloner');
@@ -11,6 +14,7 @@ const { runSCAScan } = require('./src/scanner/scaScanner');
 const { extractRepoMetadata } = require('./src/scanner/extractor');
 const { deduplicateAndCapFindings } = require('./src/scanner/deduplicator');
 const { detectSector, scoreFindings } = require('./src/scanner/scoringEngine');
+<<<<<<< HEAD
 const { runDastScan } = require('./src/scanner/dastScanner');
 
 // Path to custom Semgrep YAML rules bundled with the engine
@@ -21,11 +25,14 @@ const CUSTOM_SEMGREP_RULES = path.join(
   'semgrep-rules',
   'sector-patterns.yaml'
 );
+=======
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
+<<<<<<< HEAD
 // ─────────────────────────────────────────────────────────────────────────────
 // In-memory progress store  { scanId → { stage, done, error, result } }
 // Each entry is cleaned up 5 minutes after the scan completes.
@@ -121,11 +128,22 @@ app.get('/scan/sast/progress/:scanId', (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 app.post('/scan/sast', async (req, res) => {
   const { repoUrl, sector: sectorOverride } = req.body;
+=======
+// Health Check
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', engine: 'AVSS SAST Scanner Engine v1.0' });
+});
+
+// Primary Endpoint: POST /scan/sast
+app.post('/scan/sast', async (req, res) => {
+  const { repoUrl } = req.body;
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
 
   if (!repoUrl || typeof repoUrl !== 'string') {
     return res.status(400).json({ error: 'Missing or invalid repoUrl in request body' });
   }
 
+<<<<<<< HEAD
   // Initialise progress entry *before* starting work so the SSE endpoint can
   // find it immediately after the client receives the scanId.
   const scanId = require('crypto').randomUUID
@@ -187,12 +205,48 @@ app.post('/scan/sast', async (req, res) => {
 
     // ── Stage 8: Deduplicate + cap ──────────────────────────────────────────
     setStage(scanId, STAGES[7]);
+=======
+  let scanContext = null;
+
+  try {
+    console.log(`[SAST Engine] Starting scan for repository: ${repoUrl}`);
+    scanContext = await cloneRepo(repoUrl);
+    const { targetDir } = scanContext;
+
+    let semgrepFindings = [];
+    try {
+      console.log(`[SAST Engine] Executing Semgrep...`);
+      semgrepFindings = await runSemgrep(targetDir);
+    } catch (e) {
+      console.warn(`[SAST Engine] Semgrep skipped or not installed: ${e.message}`);
+    }
+
+    let gitleaksFindings = [];
+    try {
+      console.log(`[SAST Engine] Executing Gitleaks...`);
+      gitleaksFindings = await runGitleaks(targetDir);
+    } catch (e) {
+      console.warn(`[SAST Engine] Gitleaks skipped or not installed: ${e.message}`);
+    }
+
+    console.log(`[SAST Engine] Executing Custom Sector Rules...`);
+    const customFindings = await runCustomRules(targetDir);
+
+    console.log(`[SAST Engine] Executing SCA / OSV.dev dependency scan...`);
+    const scaFindings = await runSCAScan(targetDir);
+
+    console.log(`[SAST Engine] Extracting routes and text samples...`);
+    const { detectedRoutes, repoTextSample } = extractRepoMetadata(targetDir);
+
+    // Merge all raw findings
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
     const rawAll = [
       ...semgrepFindings,
       ...gitleaksFindings,
       ...customFindings,
       ...scaFindings
     ];
+<<<<<<< HEAD
     const findings = deduplicateAndCapFindings(rawAll);
 
     console.log(
@@ -205,29 +259,51 @@ app.post('/scan/sast', async (req, res) => {
 
     return res.json({
       scanId,
+=======
+
+    // Deduplicate and cap top 30 findings
+    let findings = deduplicateAndCapFindings(rawAll);
+
+    console.log(`[SAST Engine] Scan completed successfully. Found ${rawAll.length} raw findings -> ${findings.length} capped findings.`);
+
+    return res.json({
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
       findings,
       repoTextSample,
       detectedRoutes
     });
 
   } catch (err) {
+<<<<<<< HEAD
     console.error(`[SAST Engine] [${scanId}] Scan failed:`, err.message);
     setStage(scanId, `Error: ${err.message}`, { done: true, error: err.message });
     scheduleCleanup();
 
     return res.status(500).json({
       scanId,
+=======
+    console.error(`[SAST Engine] Scan failed for ${repoUrl}:`, err.message);
+    return res.status(500).json({
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
       error: 'Scan execution failed',
       details: err.message
     });
   } finally {
+<<<<<<< HEAD
     if (scanContext && typeof scanContext.cleanup === 'function') {
       scanContext.cleanup();
       console.log(`[SAST Engine] [${scanId}] Temp folder cleaned up.`);
+=======
+    // ALWAYS clean up temporary cloned directory
+    if (scanContext && typeof scanContext.cleanup === 'function') {
+      scanContext.cleanup();
+      console.log(`[SAST Engine] Temp folder cleaned up.`);
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
     }
   }
 });
 
+<<<<<<< HEAD
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /score  — AVSS Formula & Sector Detection  (Person 2)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -243,13 +319,29 @@ app.post('/score', (req, res) => {
     const sectorDetection = detectSector(detectedRoutes, repoTextSample, findings);
     const targetSector = sector || sectorDetection.suggestedSector;
 
+=======
+// Endpoint: POST /score (Person 2 - AVSS Formula & Sector Detection)
+app.post('/score', (req, res) => {
+  try {
+    const { findings = [], repoTextSample = '', detectedRoutes = [], sector } = req.body;
+
+    // Detect sector if not explicitly overridden by user
+    const sectorDetection = detectSector(detectedRoutes, repoTextSample, findings);
+    const targetSector = sector || sectorDetection.suggestedSector;
+
+    // Calculate AVSS Scores & Citations
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
     const scoredFindings = scoreFindings(findings, targetSector);
 
     return res.json({
       suggestedSector: sectorDetection.suggestedSector,
       scores: sectorDetection.scores,
       matchedEvidence: sectorDetection.matchedEvidence,
+<<<<<<< HEAD
       findings: scoredFindings
+=======
+      findings: scoredFindings,
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
     });
   } catch (err) {
     console.error('[SAST Engine] Scoring failed:', err.message);
@@ -257,6 +349,7 @@ app.post('/score', (req, res) => {
   }
 });
 
+<<<<<<< HEAD
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /scan/dast
 //
@@ -296,10 +389,17 @@ app.post('/scan/dast', async (req, res) => {
 app.post('/suggest-fix', (req, res) => {
   const { finding } = req.body;
 
+=======
+// Endpoint: POST /suggest-fix (AI Patch Generation)
+app.post('/suggest-fix', (req, res) => {
+  const { finding } = req.body;
+  
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
   if (!finding) {
     return res.status(400).json({ error: 'Missing finding' });
   }
 
+<<<<<<< HEAD
   const type = (finding.type || '').toLowerCase();
   const snippet = (finding.codeSnippet || '').trim();
   const filePath = finding.filePath || '';
@@ -440,16 +540,33 @@ app.post('/suggest-fix', (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // Start server
 // ─────────────────────────────────────────────────────────────────────────────
+=======
+  // Return formatted diff block & fix explanation
+  return res.json({
+    diff: [
+      { sign: '-', code: finding.codeSnippet || 'Original vulnerable line' },
+      { sign: '+', code: `// AVSS Patched: Sanitized or parameterized implementation\nsanitize(${finding.codeSnippet || 'vulnerableInput'});` }
+    ],
+    fixNote: finding.fixNote || 'Enforce strict input sanitization or parameterization before reaching the sink.'
+  });
+});
+
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
 const PORT = process.env.PORT || 5000;
 if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`================================================`);
+<<<<<<< HEAD
     console.log(` AVSS SAST Scanner Engine  — port ${PORT}`);
     console.log(` POST /scan/sast`);
     console.log(` GET  /scan/sast/progress/:scanId  (SSE)`);
     console.log(` POST /scan/dast`);
     console.log(` POST /score`);
     console.log(` POST /suggest-fix`);
+=======
+    console.log(`AVSS SAST Scanner Engine listening on port ${PORT}`);
+    console.log(`Endpoints: POST /scan/sast | POST /score | POST /suggest-fix`);
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
     console.log(`================================================`);
   });
 }

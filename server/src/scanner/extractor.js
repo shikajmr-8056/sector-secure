@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 /**
+<<<<<<< HEAD
  * Extracts API route paths, comments, and string literals from a cloned repo.
  * Returns:
  *   detectedRoutes  — array of unique API path strings (e.g. '/api/patients/:id')
@@ -15,10 +16,22 @@ function extractRepoMetadata(targetDir) {
   // 1. Read README files if present
   const readmeCandidates = ['README.md', 'readme.md', 'README.txt', 'README', 'CONTRIBUTING.md'];
   for (const rFile of readmeCandidates) {
+=======
+ * Extracts API route paths and aggregates repo text sample for downstream sector detection
+ */
+function extractRepoMetadata(targetDir) {
+  const detectedRoutes = new Set();
+  let repoTextSampleParts = [];
+
+  // 1. Read README files if present
+  const readmeFiles = ['README.md', 'readme.md', 'README.txt', 'README'];
+  for (const rFile of readmeFiles) {
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
     const fullPath = path.join(targetDir, rFile);
     if (fs.existsSync(fullPath)) {
       try {
         const text = fs.readFileSync(fullPath, 'utf-8');
+<<<<<<< HEAD
         repoTextSampleParts.push(`--- ${rFile} ---\n${text.substring(0, 4000)}`);
       } catch (_) {}
     }
@@ -48,11 +61,39 @@ function extractRepoMetadata(targetDir) {
   for (const filePath of files) {
     const ext = path.extname(filePath).toLowerCase();
     if (!['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.php', '.go', '.json', '.yaml', '.yml'].includes(ext)) continue;
+=======
+        repoTextSampleParts.push(`--- README ---\n${text.substring(0, 3000)}`);
+      } catch (e) {}
+    }
+  }
+
+  // 2. Walk source files for routes, comments, and string literals
+  const files = getAllFiles(targetDir);
+
+  const routeRegexes = [
+    // Express / Fastify / Nest: app.get('/path'), router.post('/path')
+    /(?:app|router|server)\.(?:get|post|put|delete|patch|use)\s*\(\s*["']([^"']+)["']/gi,
+    // Flask / FastAPI: @app.route('/path'), @router.get('/path')
+    /@(?:app|router)\.(?:route|get|post|put|delete)\s*\(\s*["']([^"']+)["']/gi,
+    // Django / General path: path('api/v1/patients/', ...)
+    /path\s*\(\s*["']([^"']+)["']/gi
+  ];
+
+  const commentRegex = /(\/\/[^\n]*|\/\*[\s\S]*?\*\/|#[^\n]*)/g;
+
+  for (const filePath of files) {
+    const ext = path.extname(filePath).toLowerCase();
+    if (!['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.php', '.go', '.json'].includes(ext)) continue;
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
 
     try {
       const content = fs.readFileSync(filePath, 'utf-8');
 
+<<<<<<< HEAD
       // --- Route extraction ---
+=======
+      // Extract routes
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
       for (const regex of routeRegexes) {
         regex.lastIndex = 0;
         let match;
@@ -63,6 +104,7 @@ function extractRepoMetadata(targetDir) {
         }
       }
 
+<<<<<<< HEAD
       const currentSampleSize = repoTextSampleParts.join(' ').length;
 
       // --- Comment extraction (code documentation carries strong sector signals) ---
@@ -102,6 +144,15 @@ function extractRepoMetadata(targetDir) {
       const parts = [pkg.description || '', ...(pkg.keywords || [])].join(' ');
       if (parts.trim()) repoTextSampleParts.unshift(`--- package.json ---\n${parts}`);
     } catch (_) {}
+=======
+      // Collect comments and keywords for text sample
+      const comments = content.match(commentRegex);
+      if (comments && repoTextSampleParts.join(' ').length < 10000) {
+        repoTextSampleParts.push(comments.slice(0, 15).join('\n'));
+      }
+
+    } catch (e) {}
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
   }
 
   const combinedTextSample = repoTextSampleParts.join('\n\n').substring(0, 8000);
@@ -116,7 +167,11 @@ function getAllFiles(dir, fileList = []) {
   if (!fs.existsSync(dir)) return fileList;
   const files = fs.readdirSync(dir);
   for (const file of files) {
+<<<<<<< HEAD
     if (['node_modules', '.git', 'dist', 'build', 'vendor', '.next', '.nuxt'].includes(file)) continue;
+=======
+    if (file === 'node_modules' || file === '.git' || file === 'dist' || file === 'build') continue;
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
     const filePath = path.join(dir, file);
     if (fs.statSync(filePath).isDirectory()) {
       getAllFiles(filePath, fileList);

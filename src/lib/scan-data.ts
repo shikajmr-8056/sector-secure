@@ -79,8 +79,12 @@ export function buildFileTreeFromFindings(findings: Finding[]): TreeNode[] {
       } else {
         // If it was already added as a file, but now it's a dir, update it
         if (isDir) {
+<<<<<<< HEAD
           const existing = tree[currentPath];
           if (existing) existing.isDir = true;
+=======
+          tree[currentPath].isDir = true;
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
         }
       }
     });
@@ -91,6 +95,22 @@ export function buildFileTreeFromFindings(findings: Finding[]): TreeNode[] {
     if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
     return a.path.localeCompare(b.path);
   });
+<<<<<<< HEAD
+=======
+}
+
+export function maxScoreForPath(
+  path: string,
+  sector: Sector,
+  applied: boolean,
+  findings: Finding[]
+): number {
+  const matches = findings.filter((f) => f.filePath === path || f.filePath.startsWith(path + "/"));
+  if (!matches.length) return 0;
+  return Math.max(
+    ...matches.map((f) => (applied ? avss(f, sector) : f.baseSeverity ?? f.baseline ?? 0))
+  );
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
 }
 
 export function maxScoreForPath(

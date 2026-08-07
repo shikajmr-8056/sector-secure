@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { z } from "zod";
@@ -20,6 +21,20 @@ export const Route = createFileRoute("/scan")({
     repo:    z.string().default(""),
     dastUrl: z.string().default(""),
   }),
+=======
+import { useEffect, useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { z } from "zod";
+import { ScanProgress } from "@/components/scan/ScanProgress";
+import { SectorPanel } from "@/components/scan/SectorPanel";
+import { FileTreeHeatmap } from "@/components/scan/FileTreeHeatmap";
+import { FindingsTable } from "@/components/scan/FindingsTable";
+import { DastPanel } from "@/components/scan/DastPanel";
+import { type Sector, type Finding, type TreeNode, buildFileTreeFromFindings } from "@/lib/scan-data";
+
+export const Route = createFileRoute("/scan")({
+  validateSearch: z.object({ repo: z.string().default("") }),
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
   head: () => ({
     meta: [
       { title: "Scan results — AVSS" },
@@ -32,6 +47,7 @@ export const Route = createFileRoute("/scan")({
   component: ScanDashboard,
 });
 
+<<<<<<< HEAD
 type SubTab = "overview" | "heatmap" | "compare" | "breakdown";
 
 function ScanDashboard() {
@@ -62,10 +78,37 @@ function ScanDashboard() {
     if (!shouldRunSast) { setScanning(false); return; }
     let isMounted = true;
 
+=======
+function ScanDashboard() {
+  const { repo } = Route.useSearch();
+  const [scanning, setScanning] = useState(true);
+  const [sector, setSector] = useState<Sector>("fintech");
+  const [applied, setApplied] = useState(false);
+  const [focusPath, setFocusPath] = useState<string | null>(null);
+  const [tab, setTab] = useState<"static" | "dast">("static");
+  
+  const [findings, setFindings] = useState<Finding[]>([]);
+  const [fileTree, setFileTree] = useState<TreeNode[]>([]);
+  const [sectorConfidence, setSectorConfidence] = useState<Record<Sector, number>>({ fintech: 0, healthcare: 0, ecommerce: 0, general: 1 });
+  const [sectorEvidence, setSectorEvidence] = useState<string[]>([]);
+  const [scanError, setScanError] = useState<string | null>(null);
+  
+  const cached = /demo|cached|offline/i.test(repo);
+
+  useEffect(() => {
+    if (!repo) {
+      setScanning(false);
+      return;
+    }
+
+    let isMounted = true;
+    
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
     async function runScan() {
       try {
         setScanning(true);
         setScanError(null);
+<<<<<<< HEAD
         const API_URL = (import.meta.env as any)["VITE_API_URL"] || "http://localhost:5000";
 
         const sastRes = await fetch(`${API_URL}/scan/sast`, {
@@ -80,24 +123,62 @@ function ScanDashboard() {
         const parsedFindings: Finding[] = (sastData.findings || []).map((f: any) => {
           if (f.codeSnippet && !f.snippet) {
             const lines = f.codeSnippet.split("\n");
+=======
+        
+        const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+        
+        // 1. SAST Scan
+        const sastRes = await fetch(`${API_URL}/scan/sast`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ repoUrl: repo })
+        });
+        
+        if (!sastRes.ok) throw new Error("SAST scan failed");
+        
+        const sastData = await sastRes.json();
+        
+        // Ensure snippets are in array format for the UI
+        const parsedFindings: Finding[] = (sastData.findings || []).map((f: any) => {
+          if (f.codeSnippet && !f.snippet) {
+            const lines = f.codeSnippet.split('\n');
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
             const startLine = Math.max(1, (f.lineNumber || 1) - Math.floor(lines.length / 2));
             f.snippet = lines.map((l: string, i: number) => ({ n: startLine + i, code: l }));
           }
           return f;
         });
+<<<<<<< HEAD
         if (!isMounted) return;
 
+=======
+
+        if (!isMounted) return;
+
+        // 2. Score & Sector Detect
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
         const scoreRes = await fetch(`${API_URL}/score`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             findings: parsedFindings,
             repoTextSample: sastData.repoTextSample || "",
+<<<<<<< HEAD
             detectedRoutes:  sastData.detectedRoutes  || [],
           }),
         });
         if (!scoreRes.ok) throw new Error("Scoring failed");
         const scoreData = await scoreRes.json();
+=======
+            detectedRoutes: sastData.detectedRoutes || [],
+          })
+        });
+
+        if (!scoreRes.ok) throw new Error("Scoring failed");
+
+        const scoreData = await scoreRes.json();
+        
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
         if (!isMounted) return;
 
         const finalFindings = scoreData.findings || parsedFindings;
@@ -106,19 +187,32 @@ function ScanDashboard() {
         setSector(scoreData.suggestedSector || "general");
         setSectorConfidence(scoreData.scores || { fintech: 0, healthcare: 0, ecommerce: 0, general: 1 });
         setSectorEvidence(scoreData.matchedEvidence || []);
+<<<<<<< HEAD
+=======
+        
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
       } catch (err: any) {
         if (isMounted) setScanError(err.message || "An error occurred");
       } finally {
         if (isMounted) setScanning(false);
       }
     }
+<<<<<<< HEAD
     runScan();
     return () => { isMounted = false; };
   }, [repo, shouldRunSast]);
+=======
+
+    runScan();
+
+    return () => { isMounted = false; };
+  }, [repo]);
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
 
   const handleSectorChange = async (newSector: Sector) => {
     setSector(newSector);
     setApplied(false);
+<<<<<<< HEAD
     try {
       const API_URL = (import.meta.env as any)["VITE_API_URL"] || "http://localhost:5000";
       const res = await fetch(`${API_URL}/score`, {
@@ -131,11 +225,35 @@ function ScanDashboard() {
         if (data.findings) setFindings(data.findings);
       }
     } catch (e) { console.error("Re-scoring failed", e); }
+=======
+    
+    // Re-score findings via backend
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+      const scoreRes = await fetch(`${API_URL}/score`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          findings,
+          sector: newSector,
+        })
+      });
+      if (scoreRes.ok) {
+        const data = await scoreRes.json();
+        if (data.findings) setFindings(data.findings);
+      }
+    } catch (e) {
+      console.error("Re-scoring failed", e);
+    }
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
   };
 
   const selectFile = (path: string) => {
     setFocusPath(path);
+<<<<<<< HEAD
     setSubTab("overview");
+=======
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
     const f = findings.find((x) => x.filePath === path);
     if (f) document.getElementById(`finding-${f.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
@@ -190,8 +308,25 @@ function ScanDashboard() {
             {scanError}
           </div>
         )}
+        
+        {scanError && (
+          <div className="rounded-lg border border-sev-critical/40 bg-sev-critical/10 px-4 py-2.5 text-xs text-sev-critical">
+            {scanError}
+          </div>
+        )}
 
+<<<<<<< HEAD
         {/* ── DAST tab ─────────────────────────────────────────────────── */}
+=======
+        {repo ? (
+          <ScanProgress repo={repo} isScanning={scanning} findingsCount={findings.length} />
+        ) : (
+          <div className="rounded-lg border border-border bg-panel/60 px-4 py-2.5 text-xs text-muted-foreground">
+            No repository selected. Please go back and enter a repository URL.
+          </div>
+        )}
+
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
         {tab === "dast" ? (
           <DastPanel initialUrl={dastUrl || ""} />
         ) : (
@@ -221,6 +356,7 @@ function ScanDashboard() {
               sectorEvidence={sectorEvidence}
             />
 
+<<<<<<< HEAD
             {/* Stats summary — appears as soon as findings arrive */}
             {!scanning && findings.length > 0 && (
               <SastSummary stats={stats} applied={applied} />
@@ -247,6 +383,19 @@ function ScanDashboard() {
                     )}
                   </button>
                 ))}
+=======
+            <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
+              <FileTreeHeatmap
+                sector={sector}
+                applied={applied}
+                selected={focusPath}
+                onSelect={selectFile}
+                fileTree={fileTree}
+                findings={findings}
+              />
+              <div className={scanning ? "pointer-events-none opacity-50" : ""}>
+                <FindingsTable sector={sector} applied={applied} focusPath={focusPath} findings={findings} />
+>>>>>>> 86aa094 (feat: update UI components, styling, and add backend scanner service)
               </div>
             )}
 
