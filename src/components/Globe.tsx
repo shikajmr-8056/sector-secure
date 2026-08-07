@@ -69,11 +69,12 @@ function LandDots() {
   return (
     <points geometry={geometry}>
       <pointsMaterial
-        size={0.021}
+        size={0.038}
         sizeAttenuation
-        color="#7cebff"
+        color="#8df0ff"
         transparent
-        opacity={0.75}
+        opacity={0.95}
+        blending={THREE.AdditiveBlending}
       />
     </points>
   );
@@ -168,7 +169,7 @@ function Earth() {
 
   return (
     <group ref={group} rotation={[0.32, 0, 0.16]}>
-      <mesh renderOrder={-1} visible={false}>
+      <mesh renderOrder={-1}>
         <sphereGeometry args={[RADIUS * 0.99, 48, 48]} />
         <meshBasicMaterial color="#08131b" />
       </mesh>
