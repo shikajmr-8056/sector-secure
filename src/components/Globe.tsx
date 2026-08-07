@@ -69,12 +69,11 @@ function LandDots() {
   return (
     <points geometry={geometry}>
       <pointsMaterial
-        size={0.018}
+        size={0.021}
         sizeAttenuation
-        color="#6fe6ff"
+        color="#7cebff"
         transparent
-        opacity={0.62}
-        depthWrite={false}
+        opacity={0.75}
       />
     </points>
   );
@@ -169,9 +168,9 @@ function Earth() {
 
   return (
     <group ref={group} rotation={[0.32, 0, 0.16]}>
-      <mesh>
-        <sphereGeometry args={[RADIUS * 0.995, 48, 48]} />
-        <meshBasicMaterial color="#08131b" transparent opacity={0.92} />
+      <mesh renderOrder={-1}>
+        <sphereGeometry args={[RADIUS * 0.99, 48, 48]} />
+        <meshBasicMaterial color="#08131b" />
       </mesh>
       <GraticuleLines />
       <LandDots />
