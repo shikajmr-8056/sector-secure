@@ -168,7 +168,7 @@ function Earth() {
 
   return (
     <group ref={group} rotation={[0.32, 0, 0.16]}>
-      <mesh renderOrder={-1}>
+      <mesh renderOrder={-1} visible={false}>
         <sphereGeometry args={[RADIUS * 0.99, 48, 48]} />
         <meshBasicMaterial color="#08131b" />
       </mesh>
