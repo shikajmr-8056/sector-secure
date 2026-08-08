@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { z } from "zod";
 import { ScanProgress }     from "@/components/scan/ScanProgress";
@@ -139,6 +139,23 @@ function ScanDashboard() {
     if (f) document.getElementById(`finding-${f.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
 
+  // Called when user clicks "Apply fix → update dashboard" on any finding.
+  // Updates that finding's avssScore to the post-fix estimate and marks it fixed.
+  // All derived state (stats, heatmap, treemap, before/after) recomputes automatically
+  // because they all derive from `findings` via useMemo.
+  const handleFixApplied = useCallback((findingId: string, postFixScore: number) => {
+    setFindings(prev => {
+      const updated = prev.map(f =>
+        f.id === findingId
+          ? { ...f, avssScore: postFixScore, postFixScore, fixApplied: true }
+          : f
+      );
+      // Rebuild file tree so heatmap colors update immediately
+      setFileTree(buildFileTreeFromFindings(updated));
+      return updated;
+    });
+  }, []);
+
   // Sub-tab definitions — only show when we have results
   const SUB_TABS: { id: SubTab; label: string; badge?: number }[] = [
     { id: "overview",      label: "Overview" },
@@ -267,6 +284,7 @@ function ScanDashboard() {
                     applied={applied}
                     focusPath={focusPath}
                     findings={findings}
+                    onFixApplied={handleFixApplied}
                   />
                 </div>
               </div>
@@ -296,6 +314,7 @@ function ScanDashboard() {
                     applied={applied}
                     focusPath={focusPath}
                     findings={findings}
+                    onFixApplied={handleFixApplied}
                   />
                 </div>
               </div>
@@ -315,6 +334,7 @@ function ScanDashboard() {
                   applied={applied}
                   focusPath={focusPath}
                   findings={findings}
+                  onFixApplied={handleFixApplied}
                 />
               </div>
             )}
@@ -329,4 +349,5 @@ function ScanDashboard() {
     </div>
   );
 }
+
 

@@ -35,6 +35,10 @@ export type Finding = {
   snippet?: { n: number; code: string }[];
   diff?: { sign: "+" | "-" | " "; code: string }[];
   fixNote?: string;
+  /** Set true when user clicks "Apply fix" — dashboard re-derives all scores from postFixScore */
+  fixApplied?: boolean;
+  /** The estimated post-fix AVSS score — written into avssScore when fixApplied is true */
+  postFixScore?: number;
 };
 
 export function avss(f: Finding, sector: Sector): number {
