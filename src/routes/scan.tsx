@@ -11,6 +11,7 @@ import { SeverityTreemap }  from "@/components/scan/SeverityTreemap";
 import { BeforeAfterPanel } from "@/components/scan/BeforeAfterPanel";
 import { SourceBreakdown }  from "@/components/scan/SourceBreakdown";
 import { AvssVsCvss }       from "@/components/scan/AvssVsCvss";
+import { DeepDive }         from "@/components/scan/DeepDive";
 import { apiPath } from "@/lib/api";
 import {
   type Sector, type Finding, type TreeNode,
@@ -34,7 +35,7 @@ export const Route = createFileRoute("/scan")({
   component: ScanDashboard,
 });
 
-type SubTab = "overview" | "heatmap" | "compare" | "breakdown" | "avss-vs-cvss";
+type SubTab = "overview" | "heatmap" | "compare" | "breakdown" | "avss-vs-cvss" | "deep-dive";
 
 function ScanDashboard() {
   const { repo, dastUrl } = Route.useSearch();
@@ -45,7 +46,7 @@ function ScanDashboard() {
   const [applied,         setApplied]         = useState(false);
   const [focusPath,       setFocusPath]       = useState<string | null>(null);
   const [tab,             setTab]             = useState<"static" | "dast">(initialTab);
-  const [subTab,          setSubTab]          = useState<SubTab>("overview");
+  const [subTab,          setSubTab]          = useState<SubTab>("deep-dive");
   const [findings,        setFindings]        = useState<Finding[]>([]);
   const [fileTree,        setFileTree]        = useState<TreeNode[]>([]);
   const [sectorConfidence,setSectorConfidence]= useState<Record<Sector, number>>({ fintech: 0, healthcare: 0, ecommerce: 0, general: 1 });
@@ -158,6 +159,7 @@ function ScanDashboard() {
 
   // Sub-tab definitions — only show when we have results
   const SUB_TABS: { id: SubTab; label: string; badge?: number }[] = [
+    { id: "deep-dive",     label: "⚡ Deep Dive" },
     { id: "overview",      label: "Overview" },
     { id: "heatmap",       label: "Heatmap",       ...(findings.length > 0 ? { badge: findings.length } : {}) },
     { id: "compare",       label: "Before / After" },
@@ -251,9 +253,13 @@ function ScanDashboard() {
                     key={st.id}
                     onClick={() => setSubTab(st.id)}
                     className={`flex items-center gap-1.5 rounded-t-md px-4 py-2 text-xs transition-colors ${
-                      subTab === st.id
-                        ? "border border-b-background border-border bg-panel/60 text-foreground"
-                        : "text-muted-foreground hover:text-foreground"
+                      st.id === "deep-dive"
+                        ? subTab === "deep-dive"
+                          ? "border border-b-background border-primary/60 bg-primary/10 text-primary font-bold"
+                          : "text-primary/70 hover:text-primary font-medium"
+                        : subTab === st.id
+                          ? "border border-b-background border-border bg-panel/60 text-foreground"
+                          : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
                     {st.label}
@@ -267,8 +273,18 @@ function ScanDashboard() {
               </div>
             )}
 
+            {/* ── Deep Dive sub-tab — judge presentation mode ──────── */}
+            {subTab === "deep-dive" && !scanning && findings.length > 0 && (
+              <DeepDive
+                findings={findings}
+                sector={sector}
+                applied={applied}
+                onFixApplied={handleFixApplied}
+              />
+            )}
+
             {/* ── Overview sub-tab: file tree + findings table ─────────── */}
-            {(subTab === "overview" || scanning || findings.length === 0) && (
+            {(subTab === "overview" || (scanning && subTab !== "deep-dive") || findings.length === 0) && (
               <div className={scanning ? "pointer-events-none opacity-50" : ""}>
                 <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
                   <FileTreeHeatmap
