@@ -35,6 +35,32 @@ function Code({ code }: { code: string }) {
   );
 }
 
+// ── Vulnerability type → human label ─────────────────────────────────────────
+const TYPE_LABELS: Record<string, { label: string; short: string }> = {
+  "phi-log-leak":            { label: "PHI Log Leak",            short: "PHI Leak" },
+  "hardcoded-secret":        { label: "Hardcoded Secret",        short: "Secret" },
+  "card-number-exposure":    { label: "Card Number (Luhn ✓)",    short: "Card PAN" },
+  "raw-cvv-pin-exposure":    { label: "Raw CVV / PIN",           short: "CVV/PIN" },
+  "price-manipulation":      { label: "Price Manipulation",      short: "Price Manip" },
+  "sql-injection":           { label: "SQL Injection",           short: "SQLi" },
+  "cross-site-scripting":    { label: "Cross-Site Scripting",    short: "XSS" },
+  "insecure-deserialization":{ label: "Insecure Deserialization",short: "Unsafe Deser" },
+  "missing-authentication":  { label: "Missing Authentication",  short: "No Auth" },
+  "command-injection":       { label: "Command Injection",       short: "Cmd Inject" },
+  "path-traversal":          { label: "Path Traversal",          short: "Path Trav" },
+  "ssrf":                    { label: "SSRF",                    short: "SSRF" },
+  "vulnerable-dependency":   { label: "Vulnerable Dependency",   short: "CVE Dep" },
+  "generic-sast-finding":    { label: "SAST Finding",            short: "SAST" },
+};
+
+function getTypeLabel(type?: string): { label: string; short: string } {
+  if (!type) return { label: "Unknown", short: "?" };
+  for (const [key, val] of Object.entries(TYPE_LABELS)) {
+    if (type === key || type.includes(key)) return val;
+  }
+  return { label: type.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase()), short: type.split("-")[0] ?? type };
+}
+
 // ── Score ring ────────────────────────────────────────────────────────────────
 function ScoreRing({ score, label }: { score: number; label: string }) {
   const bucket = severityBucket(score);
@@ -156,8 +182,16 @@ function FindingCard({
           {rank + 1}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-base font-semibold text-foreground truncate">{f.title}</p>
-          <p className="font-mono text-[11px] text-muted-foreground mt-0.5">
+          <div className="flex flex-wrap items-center gap-2 mb-0.5">
+            <p className="text-base font-semibold text-foreground truncate">{f.title}</p>
+            {/* Vulnerability type badge */}
+            <span
+              className="shrink-0 rounded-md border px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider"
+              style={{ color: BUCKET_COLOR[bucket], borderColor: `color-mix(in oklab, ${BUCKET_COLOR[bucket]} 50%, transparent)`, background: `color-mix(in oklab, ${BUCKET_COLOR[bucket]} 10%, transparent)` }}>
+              {getTypeLabel(f.type).label}
+            </span>
+          </div>
+          <p className="font-mono text-[11px] text-muted-foreground">
             {f.filePath}{f.lineNumber ? `:${f.lineNumber}` : ""} · {f.source ?? f.tool ?? "unknown"}
             {f.cveId && <span className="ml-2">{f.cveId}</span>}
           </p>
@@ -178,20 +212,36 @@ function FindingCard({
         {/* LEFT: scores + code */}
         <div className="space-y-5">
           {/* Score comparison */}
-          <div className="flex items-center gap-8">
-            <ScoreRing score={baseScore} label="CVSS baseline" />
-            <div className="flex flex-col items-center gap-1 font-mono">
-              <motion.div
-                initial={{ scaleX: 0 }} animate={{ scaleX: 1 }}
-                transition={{ delay: 0.5, duration: 0.6 }}
-                className="h-0.5 w-16 origin-left"
-                style={{ background: BUCKET_COLOR[bucket] }} />
-              <span className="text-[10px] font-bold" style={{ color: BUCKET_COLOR[bucket] }}>
-                ×{(liveScore / Math.max(baseScore, 0.1)).toFixed(1)}
-              </span>
-              <span className="text-[9px] text-muted-foreground">sector weight</span>
+          <div className="space-y-3">
+            <div className="flex items-center gap-8">
+              <ScoreRing score={baseScore} label="CVSS baseline" />
+              <div className="flex flex-col items-center gap-1 font-mono">
+                <motion.div
+                  initial={{ scaleX: 0 }} animate={{ scaleX: 1 }}
+                  transition={{ delay: 0.5, duration: 0.6 }}
+                  className="h-0.5 w-16 origin-left"
+                  style={{ background: BUCKET_COLOR[bucket] }} />
+                <span className="text-[10px] font-bold" style={{ color: BUCKET_COLOR[bucket] }}>
+                  ×{(liveScore / Math.max(baseScore, 0.1)).toFixed(1)}
+                </span>
+                <span className="text-[9px] text-muted-foreground">sector weight</span>
+              </div>
+              <ScoreRing score={liveScore} label="AVSS score" />
             </div>
-            <ScoreRing score={liveScore} label="AVSS score" />
+            {/* Vulnerability type label below rings */}
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-[10px] text-muted-foreground uppercase tracking-widest">Vuln type</span>
+              <span
+                className="rounded-md px-2.5 py-1 font-mono text-[11px] font-bold"
+                style={{
+                  color: BUCKET_COLOR[bucket],
+                  background: `color-mix(in oklab, ${BUCKET_COLOR[bucket]} 12%, transparent)`,
+                }}>
+                {getTypeLabel(f.type).label}
+              </span>
+              <span className="font-mono text-[10px] text-muted-foreground">·</span>
+              <span className="font-mono text-[10px] text-muted-foreground capitalize">{severityBucket(liveScore)}</span>
+            </div>
           </div>
 
           {/* Formula breakdown */}

@@ -1,6 +1,44 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
-import { type ScanStats, type Sector, BUCKET_COLOR, scoreColor } from "@/lib/scan-data";
+import { type ScanStats, type Sector, BUCKET_COLOR, scoreColor, severityBucket } from "@/lib/scan-data";
+
+// Human-readable type labels (shared with DeepDive)
+const TYPE_LABELS: Record<string, string> = {
+  "phi-log-leak":            "PHI Log Leak",
+  "hardcoded-secret":        "Hardcoded Secret",
+  "card-number-exposure":    "Card Number (Luhn ✓)",
+  "raw-cvv-pin-exposure":    "Raw CVV / PIN",
+  "price-manipulation":      "Price Manipulation",
+  "sql-injection":           "SQL Injection",
+  "cross-site-scripting":    "XSS",
+  "insecure-deserialization":"Unsafe Deser",
+  "missing-authentication":  "No Auth",
+  "command-injection":       "Cmd Injection",
+  "path-traversal":          "Path Traversal",
+  "vulnerable-dependency":   "CVE Dependency",
+  "generic-sast-finding":    "SAST Finding",
+};
+
+function humanType(t: string): string {
+  for (const [key, val] of Object.entries(TYPE_LABELS)) {
+    if (t === key || t.includes(key)) return val;
+  }
+  return t.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+}
+
+const TYPE_COLOR: Record<string, string> = {
+  "phi-log-leak":          "var(--sev-critical)",
+  "card-number-exposure":  "var(--sev-critical)",
+  "hardcoded-secret":      "var(--sev-critical)",
+  "raw-cvv-pin-exposure":  "var(--sev-critical)",
+  "price-manipulation":    "var(--sev-high)",
+  "sql-injection":         "var(--sev-high)",
+  "command-injection":     "var(--sev-high)",
+  "insecure-deserialization": "var(--sev-high)",
+  "cross-site-scripting":  "var(--sev-medium)",
+  "missing-authentication":"var(--sev-medium)",
+  "vulnerable-dependency": "var(--sev-medium)",
+};
 
 // Animated counter — tweens from previous value to new target (not from 0)
 function Counter({ target, decimals = 0, duration = 700 }: { target: number; decimals?: number; duration?: number }) {
@@ -108,6 +146,46 @@ export function SastSummary({ stats, applied }: { stats: ScanStats; applied: boo
           sub="exploitation likelihood"
         />
       </div>
+
+      {/* Vulnerability types found */}
+      {Object.keys(stats.byType).length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-panel/60 px-4 py-2.5"
+        >
+          <span className="font-mono text-[10px] tracking-widest text-muted-foreground uppercase shrink-0">
+            Vuln types
+          </span>
+          {Object.entries(stats.byType)
+            .sort((a, b) => b[1] - a[1])
+            .map(([type, count]) => {
+              const color = TYPE_COLOR[type] ?? "var(--muted-foreground)";
+              return (
+                <motion.span
+                  key={type}
+                  initial={{ opacity: 0, scale: 0.85 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="flex items-center gap-1.5 rounded-md border px-2 py-0.5 font-mono text-[10px] font-medium"
+                  style={{
+                    color,
+                    borderColor: `color-mix(in oklab, ${color} 35%, transparent)`,
+                    background: `color-mix(in oklab, ${color} 8%, transparent)`,
+                  }}
+                >
+                  {humanType(type)}
+                  <span
+                    className="rounded-full px-1 font-bold tabular-nums text-[9px]"
+                    style={{ background: `color-mix(in oklab, ${color} 20%, transparent)` }}
+                  >
+                    {count}
+                  </span>
+                </motion.span>
+              );
+            })}
+        </motion.div>
+      )}
 
       {/* Top risk file banner */}
       {stats.topRiskFile !== "—" && (
