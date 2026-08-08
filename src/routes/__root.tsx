@@ -11,7 +11,6 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
-import { CursorDitherTrail } from "@/components/ui/cursor-dither-trail";
 
 function NotFoundComponent() {
   return (
@@ -132,8 +131,6 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {/* Cursor dither trail — fixed overlay, pointer-events-none */}
-      <CursorDitherTrail trailColor="#b6ff3c" dotSize={4} fadeDuration={700} />
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
     </QueryClientProvider>

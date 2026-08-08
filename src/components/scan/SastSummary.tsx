@@ -2,25 +2,26 @@ import { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
 import { type ScanStats, type Sector, BUCKET_COLOR, scoreColor } from "@/lib/scan-data";
 
-// Animated counter that ticks up to target value
-function Counter({ target, decimals = 0, duration = 900 }: { target: number; decimals?: number; duration?: number }) {
-  const [display, setDisplay] = useState(0);
+// Animated counter — tweens from previous value to new target (not from 0)
+function Counter({ target, decimals = 0, duration = 700 }: { target: number; decimals?: number; duration?: number }) {
+  const [display, setDisplay] = useState(target);
+  const prevRef  = useRef(target);
   const frameRef = useRef<number>(0);
-  const startRef = useRef<number>(0);
 
   useEffect(() => {
-    // requestAnimationFrame is browser-only — skip during SSR
-    if (typeof requestAnimationFrame === "undefined") {
-      setDisplay(target);
-      return;
-    }
+    if (typeof requestAnimationFrame === "undefined") { setDisplay(target); return; }
+    const from = prevRef.current;
+    prevRef.current = target;
+    if (from === target) return;
+
     cancelAnimationFrame(frameRef.current);
-    startRef.current = performance.now();
+    const start = performance.now();
     const tick = (now: number) => {
-      const t = Math.min(1, (now - startRef.current) / duration);
-      const eased = 1 - Math.pow(1 - t, 3);
-      setDisplay(eased * target);
+      const t = Math.min(1, (now - start) / duration);
+      const ease = 1 - Math.pow(1 - t, 3);
+      setDisplay(from + (target - from) * ease);
       if (t < 1) frameRef.current = requestAnimationFrame(tick);
+      else setDisplay(target);
     };
     frameRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frameRef.current);
@@ -42,13 +43,28 @@ function StatCard({
   sub?: string;
   decimals?: number;
 }) {
+  const prevValue = useRef(value);
+  const changed   = prevValue.current !== value;
+  const decreased = value < prevValue.current;
+  useEffect(() => { prevValue.current = value; });
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4 }}
-      className="flex flex-col gap-1 rounded-xl border border-border bg-panel/60 px-4 py-3 backdrop-blur-sm"
+      animate={changed ? { scale: [1, 1.04, 1] } : {}}
+      transition={{ duration: 0.35 }}
+      className="flex flex-col gap-1 rounded-xl border border-border bg-panel/60 px-4 py-3 backdrop-blur-sm relative overflow-hidden"
     >
+      {/* Green flash when a value drops (fix applied) */}
+      {decreased && (
+        <motion.div
+          key={value}
+          initial={{ opacity: 0.5 }}
+          animate={{ opacity: 0 }}
+          transition={{ duration: 0.8 }}
+          className="absolute inset-0 rounded-xl"
+          style={{ background: "color-mix(in oklab, var(--sev-low) 20%, transparent)" }}
+        />
+      )}
       <span className="font-mono text-[10px] tracking-widest text-muted-foreground uppercase">{label}</span>
       <span className="font-mono text-2xl font-black tabular-nums" style={{ color: color ?? "var(--foreground)" }}>
         <Counter target={value} decimals={decimals} />
