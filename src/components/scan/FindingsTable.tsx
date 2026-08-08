@@ -1,6 +1,7 @@
 import { useMemo, useState, useCallback } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { avss, scoreColor, severityBucket, BUCKET_COLOR, type Finding, type Sector } from "@/lib/scan-data";
+import { getApiUrl } from "@/lib/api";
 
 // ── Syntax-highlighted code ────────────────────────────────────────────────
 const SEV_COLOR: Record<NonNullable<Finding["severity"]>, string> = {

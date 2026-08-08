@@ -4,6 +4,7 @@ import {
   type DastCheck, type DastScanResult, type DastResult,
   DAST_STAGES, DAST_CATEGORY_COLOR, dastResultColor, gradeColor,
 } from "@/lib/scan-data";
+import { getApiUrl } from "@/lib/api";
 
 // ── Radar / spider chart (pure SVG, no lib dependency) ─────────────────────
 function RadarChart({ scores }: { scores: Record<string, number> }) {
@@ -112,7 +113,7 @@ function AISuggestion({ check }: { check: DastCheck }) {
     setLoading(true);
     try {
       // Call /suggest-fix with a DAST-shaped payload
-      const API_URL = (import.meta.env as any)['VITE_API_URL'] || "http://localhost:5000";
+      const API_URL = getApiUrl();
       const res = await fetch(`${API_URL}/suggest-fix`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -338,7 +339,7 @@ export function DastPanel({ initialUrl = "" }: { initialUrl?: string }) {
     setCurrentStage(DAST_STAGES[0] ?? "");
 
     try {
-      const API_URL = (import.meta.env as any)['VITE_API_URL'] || "http://localhost:5000";
+      const API_URL = getApiUrl();
       const res = await fetch(`${API_URL}/scan/dast`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

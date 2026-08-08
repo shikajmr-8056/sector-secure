@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { z } from "zod";
 import { ScanProgress }     from "@/components/scan/ScanProgress";
@@ -10,6 +10,7 @@ import { SastSummary }      from "@/components/scan/SastSummary";
 import { SeverityTreemap }  from "@/components/scan/SeverityTreemap";
 import { BeforeAfterPanel } from "@/components/scan/BeforeAfterPanel";
 import { SourceBreakdown }  from "@/components/scan/SourceBreakdown";
+import { getApiUrl } from "@/lib/api";
 import {
   type Sector, type Finding, type TreeNode,
   buildFileTreeFromFindings, computeStats,
@@ -66,7 +67,7 @@ function ScanDashboard() {
       try {
         setScanning(true);
         setScanError(null);
-        const API_URL = (import.meta.env as any)["VITE_API_URL"] || "http://localhost:5000";
+        const API_URL = getApiUrl();
 
         const sastRes = await fetch(`${API_URL}/scan/sast`, {
           method: "POST",
@@ -120,7 +121,7 @@ function ScanDashboard() {
     setSector(newSector);
     setApplied(false);
     try {
-      const API_URL = (import.meta.env as any)["VITE_API_URL"] || "http://localhost:5000";
+      const API_URL = getApiUrl();
       const res = await fetch(`${API_URL}/score`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

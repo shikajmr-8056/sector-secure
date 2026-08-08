@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: avss-backend
+    runtime: node
+    rootDir: server
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: PORT
+        value: 10000
+    plan: free
+    autoDeploy: true

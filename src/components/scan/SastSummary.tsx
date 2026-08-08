@@ -9,6 +9,11 @@ function Counter({ target, decimals = 0, duration = 900 }: { target: number; dec
   const startRef = useRef<number>(0);
 
   useEffect(() => {
+    // requestAnimationFrame is browser-only — skip during SSR
+    if (typeof requestAnimationFrame === "undefined") {
+      setDisplay(target);
+      return;
+    }
     cancelAnimationFrame(frameRef.current);
     startRef.current = performance.now();
     const tick = (now: number) => {

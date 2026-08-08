@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { SCAN_STAGES } from "@/lib/scan-data";
+import { getApiUrl } from "@/lib/api";
 
 export function ScanProgress({
   repo,
@@ -34,7 +35,11 @@ export function ScanProgress({
     setStageIndex(0);
     setLiveStage(SCAN_STAGES[0] ?? "");
 
-    const API_URL = (import.meta.env as any)["VITE_API_URL"] ?? "http://localhost:5000";
+    const API_URL = getApiUrl();
+
+    // EventSource is browser-only — guard against SSR
+    if (typeof EventSource === "undefined") return;
+
     const es = new EventSource(`${API_URL}/scan/sast/progress/${scanId}`);
     esRef.current = es;
 
