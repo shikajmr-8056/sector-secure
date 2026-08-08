@@ -1,6 +1,14 @@
 {
   "buildCommand": "npm run build",
+  "outputDirectory": ".output/public",
   "installCommand": "npm install",
   "framework": null,
-  "outputDirectory": ".vercel/output"
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/_nitro" }
+  ],
+  "functions": {
+    ".output/server/index.mjs": {
+      "includeFiles": ".output/server/**"
+    }
+  }
 }
