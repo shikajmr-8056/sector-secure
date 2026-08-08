@@ -10,6 +10,7 @@ import { SastSummary }      from "@/components/scan/SastSummary";
 import { SeverityTreemap }  from "@/components/scan/SeverityTreemap";
 import { BeforeAfterPanel } from "@/components/scan/BeforeAfterPanel";
 import { SourceBreakdown }  from "@/components/scan/SourceBreakdown";
+import { AvssVsCvss }       from "@/components/scan/AvssVsCvss";
 import { getApiUrl } from "@/lib/api";
 import {
   type Sector, type Finding, type TreeNode,
@@ -33,7 +34,7 @@ export const Route = createFileRoute("/scan")({
   component: ScanDashboard,
 });
 
-type SubTab = "overview" | "heatmap" | "compare" | "breakdown";
+type SubTab = "overview" | "heatmap" | "compare" | "breakdown" | "avss-vs-cvss";
 
 function ScanDashboard() {
   const { repo, dastUrl } = Route.useSearch();
@@ -143,10 +144,11 @@ function ScanDashboard() {
 
   // Sub-tab definitions — only show when we have results
   const SUB_TABS: { id: SubTab; label: string; badge?: number }[] = [
-    { id: "overview",  label: "Overview" },
-    { id: "heatmap",   label: "Heatmap",      ...(findings.length > 0 ? { badge: findings.length } : {}) },
-    { id: "compare",   label: "Before / After" },
-    { id: "breakdown", label: "Breakdown" },
+    { id: "overview",      label: "Overview" },
+    { id: "heatmap",       label: "Heatmap",       ...(findings.length > 0 ? { badge: findings.length } : {}) },
+    { id: "compare",       label: "Before / After" },
+    { id: "breakdown",     label: "Breakdown" },
+    { id: "avss-vs-cvss",  label: "AVSS vs CVSS" },
   ];
 
   return (
@@ -318,6 +320,11 @@ function ScanDashboard() {
                   findings={findings}
                 />
               </div>
+            )}
+
+            {/* ── AVSS vs CVSS sub-tab ─────────────────────────────────── */}
+            {subTab === "avss-vs-cvss" && !scanning && findings.length > 0 && (
+              <AvssVsCvss findings={findings} sector={sector} />
             )}
           </>
         )}
