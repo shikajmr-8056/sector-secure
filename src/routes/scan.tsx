@@ -11,7 +11,7 @@ import { SeverityTreemap }  from "@/components/scan/SeverityTreemap";
 import { BeforeAfterPanel } from "@/components/scan/BeforeAfterPanel";
 import { SourceBreakdown }  from "@/components/scan/SourceBreakdown";
 import { AvssVsCvss }       from "@/components/scan/AvssVsCvss";
-import { getApiUrl } from "@/lib/api";
+import { apiPath } from "@/lib/api";
 import {
   type Sector, type Finding, type TreeNode,
   buildFileTreeFromFindings, computeStats,
@@ -68,9 +68,7 @@ function ScanDashboard() {
       try {
         setScanning(true);
         setScanError(null);
-        const API_URL = getApiUrl();
-
-        const sastRes = await fetch(`${API_URL}/scan/sast`, {
+        const sastRes = await fetch(apiPath("/scan/sast"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ repoUrl: repo }),
@@ -89,7 +87,7 @@ function ScanDashboard() {
         });
         if (!isMounted) return;
 
-        const scoreRes = await fetch(`${API_URL}/score`, {
+        const scoreRes = await fetch(apiPath("/score"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -122,8 +120,7 @@ function ScanDashboard() {
     setSector(newSector);
     setApplied(false);
     try {
-      const API_URL = getApiUrl();
-      const res = await fetch(`${API_URL}/score`, {
+      const res = await fetch(apiPath("/score"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ findings, sector: newSector }),
@@ -332,3 +329,4 @@ function ScanDashboard() {
     </div>
   );
 }
+

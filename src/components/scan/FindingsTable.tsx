@@ -1,7 +1,7 @@
 import { useMemo, useState, useCallback } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { avss, scoreColor, severityBucket, BUCKET_COLOR, type Finding, type Sector } from "@/lib/scan-data";
-import { getApiUrl } from "@/lib/api";
+import { apiPath } from "@/lib/api";
 
 // ── Syntax-highlighted code ────────────────────────────────────────────────
 const SEV_COLOR: Record<NonNullable<Finding["severity"]>, string> = {
@@ -47,8 +47,7 @@ function ExpandedRow({ f, sector }: { f: Finding; sector: Sector }) {
       setLoadingFix(true);
       setShowFix(true);
       try {
-        const API_URL = (import.meta.env as any)["VITE_API_URL"] || "http://localhost:5000";
-        const res = await fetch(`${API_URL}/suggest-fix`, {
+        const res = await fetch(apiPath("/suggest-fix"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ finding: f }),
@@ -461,3 +460,4 @@ export function FindingsTable({
     </div>
   );
 }
+

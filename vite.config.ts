@@ -15,4 +15,17 @@ export default defineConfig({
   nitro: {
     preset: "vercel",
   },
+  // Dev-server proxy: forwards /api/* → Express backend on :5000
+  // This eliminates CORS issues in dev and means VITE_API_URL doesn't need to be set locally
+  vite: {
+    server: {
+      proxy: {
+        "/api": {
+          target: "http://localhost:5000",
+          changeOrigin: true,
+          rewrite: (path: string) => path.replace(/^\/api/, ""),
+        },
+      },
+    },
+  },
 });
