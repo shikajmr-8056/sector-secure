@@ -12,6 +12,7 @@ const { extractRepoMetadata } = require('./src/scanner/extractor');
 const { deduplicateAndCapFindings } = require('./src/scanner/deduplicator');
 const { detectSector, scoreFindings } = require('./src/scanner/scoringEngine');
 const { runDastScan } = require('./src/scanner/dastScanner');
+const { suggestFix }  = require('./src/scanner/suggestFix');
 
 // Path to custom Semgrep YAML rules bundled with the engine
 const CUSTOM_SEMGREP_RULES = path.join(
@@ -290,151 +291,18 @@ app.post('/scan/dast', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// POST /suggest-fix  — Type-aware remediation engine
-// Generates a real, context-specific diff and fix note based on finding.type.
+// POST /suggest-fix  — AI-powered remediation (Gemini 2.5 Flash Lite + static DB)
 // ─────────────────────────────────────────────────────────────────────────────
-app.post('/suggest-fix', (req, res) => {
+app.post('/suggest-fix', async (req, res) => {
   const { finding } = req.body;
-
-  if (!finding) {
-    return res.status(400).json({ error: 'Missing finding' });
+  if (!finding) return res.status(400).json({ error: 'Missing finding' });
+  try {
+    const result = await suggestFix(finding);
+    return res.json(result);
+  } catch (err) {
+    console.error('[suggest-fix] Unexpected error:', err.message);
+    return res.status(500).json({ error: 'Fix generation failed', details: err.message });
   }
-
-  const type = (finding.type || '').toLowerCase();
-  const snippet = (finding.codeSnippet || '').trim();
-  const filePath = finding.filePath || '';
-
-  // ── Type-specific remediation database ──────────────────────────────────
-  const remediations = {
-    'phi-log-leak': {
-      diff: [
-        { sign: '-', code: snippet || 'console.log("patient:", patient_id, diagnosis);' },
-        { sign: '+', code: '// Encrypt PHI before any logging or writing' },
-        { sign: '+', code: 'const masked = maskPHI(patient_id); // show only last 4 chars' },
-        { sign: '+', code: 'logger.info("Patient accessed", { id: masked });' },
-      ],
-      fixNote: `PHI variables must never reach logging sinks in plaintext. Mask or encrypt before logging. Relevant under India's DPDP Act §8 and HIPAA §164.312(a).`
-    },
-    'card-number-exposure': {
-      diff: [
-        { sign: '-', code: snippet || 'const card_number = "4532015112830366";' },
-        { sign: '+', code: '// Never store or log raw PANs — tokenise at point of entry' },
-        { sign: '+', code: 'const token = await paymentGateway.tokenize(rawCardInput);' },
-        { sign: '+', code: '// Store token, never the PAN. PCI-DSS Req 3.4.' },
-      ],
-      fixNote: 'Primary Account Numbers (PANs) must be tokenised via a PCI-DSS compliant vault. Raw card data must not exist in application code or logs.'
-    },
-    'hardcoded-secret': {
-      diff: [
-        { sign: '-', code: snippet || 'const api_key = "AKIA1234567890123456";' },
-        { sign: '+', code: '// Load credentials from environment — never hard-code' },
-        { sign: '+', code: 'const api_key = process.env.API_KEY;' },
-        { sign: '+', code: 'if (!api_key) throw new Error("API_KEY env var not set");' },
-      ],
-      fixNote: 'Rotate the exposed credential immediately. Store secrets in environment variables, a secrets manager (AWS Secrets Manager, HashiCorp Vault), or a CI/CD secret store — never in source code.'
-    },
-    'raw-cvv-pin-exposure': {
-      diff: [
-        { sign: '-', code: snippet || 'const cvv = "123";' },
-        { sign: '+', code: '// CVV must NEVER be stored or hard-coded (PCI-DSS Req 3.2)' },
-        { sign: '+', code: '// Accept CVV only transiently for authorisation, then discard' },
-        { sign: '+', code: 'const authResult = await gateway.authorise({ pan: token, cvv: req.body.cvv });' },
-        { sign: '+', code: '// cvv is never stored after this point' },
-      ],
-      fixNote: 'CVV/CVC2 values must not be stored after authorisation. Transmit directly to payment processor over TLS and discard. PCI-DSS Req 3.2.1 prohibits storage post-auth.'
-    },
-    'price-manipulation': {
-      diff: [
-        { sign: '-', code: snippet || 'total_price = price * items.length;  // client-side' },
-        { sign: '+', code: '// Price must be computed server-side only' },
-        { sign: '+', code: '// Frontend: send item IDs and quantities, NOT prices' },
-        { sign: '+', code: 'const order = { items: [{ sku: item.sku, qty: item.qty }] };' },
-        { sign: '+', code: '// Server recalculates and validates: amount > 0' },
-        { sign: '+', code: 'if (serverAmount <= 0) return res.status(400).json({ error: "Invalid amount" });' },
-      ],
-      fixNote: 'Client-side price calculations can be tampered. Send only item IDs/quantities to the server; the server must independently compute the total and enforce amount > 0 before charging.'
-    },
-    'sql-injection': {
-      diff: [
-        { sign: '-', code: snippet || 'db.query("SELECT * FROM users WHERE id = " + req.params.id);' },
-        { sign: '+', code: '// Use parameterised queries — never string-concatenate user input' },
-        { sign: '+', code: 'db.query("SELECT * FROM users WHERE id = $1", [req.params.id]);' },
-      ],
-      fixNote: 'Parameterised queries (prepared statements) eliminate SQL injection by separating code from data. Never build SQL strings by concatenating request parameters.'
-    },
-    'cross-site-scripting': {
-      diff: [
-        { sign: '-', code: snippet || 'res.send("<div>" + req.query.name + "</div>");' },
-        { sign: '+', code: '// Escape all user input before rendering in HTML context' },
-        { sign: '+', code: 'const safe = escapeHtml(req.query.name);' },
-        { sign: '+', code: 'res.send(`<div>${safe}</div>`);' },
-      ],
-      fixNote: 'HTML-encode all user-controlled values before inserting into HTML. Use a template engine with auto-escaping (e.g. Handlebars, Nunjucks). Add Content-Security-Policy to the response.'
-    },
-    'insecure-deserialization': {
-      diff: [
-        { sign: '-', code: snippet || 'const obj = eval(req.body.data);' },
-        { sign: '+', code: '// Never eval() user input. Use JSON.parse with schema validation.' },
-        { sign: '+', code: 'const obj = JSON.parse(req.body.data);' },
-        { sign: '+', code: 'validateSchema(obj); // e.g. with zod or joi' },
-      ],
-      fixNote: 'Avoid eval() and unsafe deserialisation methods. Parse with JSON.parse and validate the resulting object against a strict schema before use.'
-    },
-    'missing-authentication': {
-      diff: [
-        { sign: '-', code: snippet || 'app.post("/admin/delete", async (req, res) => {' },
-        { sign: '+', code: '// Add authentication middleware before the route handler' },
-        { sign: '+', code: 'app.post("/admin/delete", requireAuth, requireRole("admin"), async (req, res) => {' },
-        { sign: '+', code: '  // handler logic...' },
-        { sign: '+', code: '});' },
-      ],
-      fixNote: 'All sensitive and admin endpoints must verify a valid session/JWT before processing. Apply authentication and authorisation middleware consistently.'
-    },
-    'command-injection': {
-      diff: [
-        { sign: '-', code: snippet || 'exec("ls " + req.query.dir, callback);' },
-        { sign: '+', code: '// Never pass user input to shell commands' },
-        { sign: '+', code: '// Use built-in APIs (fs, path) instead of shell execution' },
-        { sign: '+', code: 'const safePath = path.resolve("/safe/base", path.basename(req.query.dir));' },
-        { sign: '+', code: 'fs.readdir(safePath, callback);' },
-      ],
-      fixNote: 'Avoid spawning shell commands with user-controlled input. Use Node.js built-in APIs. If exec is unavoidable, use execFile() with an explicit argument array, never string interpolation.'
-    },
-    'vulnerable-dependency': {
-      diff: [
-        { sign: '-', code: snippet || `"${finding.filePath?.includes('requirements') ? 'package' : 'package'}": "vulnerable-version"` },
-        { sign: '+', code: `// Run: npm audit fix   (or: pip install --upgrade ${snippet.split('@')[0] || 'package'})` },
-        { sign: '+', code: `// Pin to the patched version listed in the CVE advisory` },
-      ],
-      fixNote: `Update to the patched version referenced in ${finding.cveId || 'the CVE advisory'}. Run \`npm audit\` / \`pip-audit\` in CI to catch future regressions. EPSS score: ${finding.epssScore != null ? finding.epssScore.toFixed(3) : 'N/A'}.`
-    }
-  };
-
-  // Find the best matching remediation
-  let matched = null;
-  for (const [key, val] of Object.entries(remediations)) {
-    if (type.includes(key) || type === key) {
-      matched = val;
-      break;
-    }
-  }
-
-  // Fallback: generic but meaningful guidance based on source tool
-  if (!matched) {
-    const source = (finding.source || '').toLowerCase();
-    matched = {
-      diff: [
-        { sign: '-', code: snippet || '// vulnerable code pattern' },
-        { sign: '+', code: `// Remediate: ${finding.title || 'Review finding and apply secure coding pattern'}` },
-        { sign: '+', code: `// File: ${filePath}${finding.lineNumber ? `:${finding.lineNumber}` : ''}` },
-      ],
-      fixNote: finding.evidence
-        ? `Triggered by: ${finding.evidence}. Review the flagged code and apply the principle of least privilege and input validation.`
-        : 'Review the flagged code pattern. Apply input validation, output encoding, and principle of least privilege as appropriate for this finding type.'
-    };
-  }
-
-  return res.json({ diff: matched.diff, fixNote: matched.fixNote });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
